@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>AVATAR CUSTOMIZER</title>
+		<link rel="stylesheet" href="./style.css" />
+
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Raleway:wght@200&display=swap"
+			rel="stylesheet"
+		/>
+
+		<link
+			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+		/>
+	</head>
+	<body>
+		<canvas class="webgl"></canvas>
+
+		<div class="avatar-customizer-ui" id="avatar-customizer-ui">
+			<div class="title">Customize your avatar</div>
+
+			<div class="ui" id="ui"></div>
+			<div class="buttons-container">
+				<button class="customization-done" id="done">
+					<span class="material-symbols-outlined" style="font-size: 36px">
+						photo_camera
+					</span>
+				</button>
+
+				<button id="sampleAnimationBtn">Play Animation</button>
+			</div>
+		</div>
+
+		<script type="module" src="./script.js"></script>
+	</body>
+</html>
+
+<!-- <div class="hats items-container">
+					<span class="item-title">JACKETS</span>
+					<div class="hats-list items-list">
+						<button class="item-interaction-button" id="hat-prev">
+							<span class="material-symbols-outlined"> chevron_left </span>
+						</button>
+
+						<div id="hat-one" class="item disabled">
+							<div class="item-image"></div>
+							<div class="item-description">NONE</div>
+						</div>
+
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">JACKET ONE</div>
+						</div>
+						<div id="hat-two" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">JACKET TWO</div>
+						</div>
+
+						<button class="item-interaction-button" id="hat-next">
+							<span class="material-symbols-outlined"> chevron_right </span>
+						</button>
+					</div>
+				</div>
+				<div class="eye-glass items-container">
+					<span class="item-title">COVERALLS</span>
+					<div class="glasses-list items-list">
+						<button class="item-interaction-button" id="glass-prev">
+							<span class="material-symbols-outlined"> chevron_left </span>
+						</button>
+
+						<div id="hat-one" class="item disabled">
+							<div class="item-image"></div>
+							<div class="item-description">NONE</div>
+						</div>
+						<div id="glass-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">COVERALL ONE</div>
+						</div>
+						<div id="glass-two" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">COVERALL THREE</div>
+						</div>
+
+						<div id="glass-three " class="item disabled">
+							<div class="item-image"></div>
+							<div class="item-description">COVERALL THREE</div>
+						</div>
+
+						<div id="glass-three " class="item disabled">
+							<div class="item-image"></div>
+							<div class="item-description">COVERALL FOUR</div>
+						</div>
+						<button class="item-interaction-button" id="glass-next">
+							<span class="material-symbols-outlined"> chevron_right </span>
+						</button>
+					</div>
+				</div>
+
+				<div class="hats items-container">
+					<span class="item-title">PANTS</span>
+					<div class="hats-list items-list">
+						<button class="item-interaction-button" id="hat-prev">
+							<span class="material-symbols-outlined"> chevron_left </span>
+						</button>
+
+						<div id="hat-one" class="item disabled">
+							<div class="item-image"></div>
+							<div class="item-description">NONE</div>
+						</div>
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">PANTS ONE</div>
+						</div>
+						<div id="hat-two" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">PANTS TWO</div>
+						</div>
+
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">PANTS THREE</div>
+						</div>
+						<div id="hat-two" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">PANTS FOUR</div>
+						</div>
+
+						<button class="item-interaction-button" id="hat-next">
+							<span class="material-symbols-outlined"> chevron_right </span>
+						</button>
+					</div>
+				</div>
+
+				<div class="hats items-container">
+					<span class="item-title">BAGS</span>
+					<div class="hats-list items-list">
+						<button class="item-interaction-button" id="hat-prev">
+							<span class="material-symbols-outlined"> chevron_left </span>
+						</button>
+
+						<div id="hat-one" class="item disabled">
+							<div class="item-image"></div>
+							<div class="item-description">NONE</div>
+						</div>
+
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">BAG ONE</div>
+						</div>
+						<div id="hat-two" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">BAG TWO</div>
+						</div>
+
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">BAG THREE</div>
+						</div>
+
+						<button class="item-interaction-button" id="hat-next">
+							<span class="material-symbols-outlined"> chevron_right </span>
+						</button>
+					</div>
+				</div>
+
+				<div class="hats items-container">
+					<span class="item-title">BOOTS</span>
+					<div class="hats-list items-list">
+						<button class="item-interaction-button" id="hat-prev">
+							<span class="material-symbols-outlined"> chevron_left </span>
+						</button>
+
+						<div id="hat-one" class="item disabled">
+							<div class="item-image"></div>
+							<div class="item-description">NONE</div>
+						</div>
+
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">BOOT ONE</div>
+						</div>
+						<div id="hat-two" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">BOOT TWO</div>
+						</div>
+
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">BOOT THREE</div>
+						</div>
+
+						<button class="item-interaction-button" id="hat-next">
+							<span class="material-symbols-outlined"> chevron_right </span>
+						</button>
+					</div>
+				</div>
+
+				<div class="hats items-container">
+					<span class="item-title">HOODIES</span>
+					<div class="hats-list items-list">
+						<button class="item-interaction-button" id="hat-prev">
+							<span class="material-symbols-outlined"> chevron_left </span>
+						</button>
+
+						<div id="hat-one" class="item disabled">
+							<div class="item-image"></div>
+							<div class="item-description">NONE</div>
+						</div>
+
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">HOODIE ONE</div>
+						</div>
+						<div id="hat-two" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">HOODIE TWO</div>
+						</div>
+
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">HOODIE THREE</div>
+						</div>
+
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">HOODIE FOUR</div>
+						</div>
+						<div id="hat-two" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">HOODIE FIVE</div>
+						</div>
+
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">HOODIE SIX</div>
+						</div>
+
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">HOODIE SEVEN</div>
+						</div>
+
+						<button class="item-interaction-button" id="hat-next">
+							<span class="material-symbols-outlined"> chevron_right </span>
+						</button>
+					</div>
+				</div>
+
+				<div class="hats items-container">
+					<span class="item-title">TSHIRT</span>
+					<div class="hats-list items-list">
+						<button class="item-interaction-button" id="hat-prev">
+							<span class="material-symbols-outlined"> chevron_left </span>
+						</button>
+
+						<div id="hat-one" class="item disabled">
+							<div class="item-image"></div>
+							<div class="item-description">NONE</div>
+						</div>
+
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">MASK ONE</div>
+						</div>
+
+						<button class="item-interaction-button" id="hat-next">
+							<span class="material-symbols-outlined"> chevron_right </span>
+						</button>
+					</div>
+				</div>
+
+				<div class="hats items-container">
+					<span class="item-title">MASK</span>
+					<div class="hats-list items-list">
+						<button class="item-interaction-button" id="hat-prev">
+							<span class="material-symbols-outlined"> chevron_left </span>
+						</button>
+						<div id="hat-one" class="item disabled">
+							<div class="item-image"></div>
+							<div class="item-description">NONE</div>
+						</div>
+						<div id="hat-one" class="item">
+							<div class="item-image"></div>
+							<div class="item-description">MASK ONE</div>
+						</div>
+
+						<button class="item-interaction-button" id="hat-next">
+							<span class="material-symbols-outlined"> chevron_right </span>
+						</button>
+					</div>
+				</div> -->
