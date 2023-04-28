@@ -2,7 +2,11 @@
 <html lang="en">
 	<head>
 		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+		/>
+
 		<title>AVATAR CUSTOMIZER</title>
 		<link rel="stylesheet" href="./style.css" />
 
@@ -19,21 +23,47 @@
 		/>
 	</head>
 	<body>
-		<canvas class="webgl"></canvas>
+		<div id="screenshotable">
+			<canvas id="webgl" class="webgl"> </canvas>
+			<div class="clothing-names" id="clothing-names"></div>
+		</div>
 
-		<div class="avatar-customizer-ui" id="avatar-customizer-ui">
-			<div class="title">Customize your avatar</div>
-
+		<div class="avatar-customizer-ui unselectable" id="avatar-customizer-ui">
+			<button class="toggle-collapse" id="toggle-collapse">
+				UI
+				<span class="material-symbols-outlined" id="toggle-collapse-icon">
+					chevron_right
+				</span>
+			</button>
 			<div class="ui" id="ui"></div>
-			<div class="buttons-container">
-				<button class="customization-done" id="done">
-					<span class="material-symbols-outlined" style="font-size: 36px">
-						photo_camera
-					</span>
-				</button>
+		</div>
 
-				<button id="sampleAnimationBtn">Play Animation</button>
+		<div class="buttons-container unselectable">
+			<button id="startAudio">
+				<span class="material-symbols-outlined" id="audio-play-icon">
+					play_arrow
+				</span>
+			</button>
+			<button id="muteAudio">
+				<span class="material-symbols-outlined" id="audio-mute-icon">
+					volume_up
+				</span>
+			</button>
+			<div class="range-container">
+				<input type="range" id="volumeControl" min="0" max="100" value="30" />
 			</div>
+
+			<button id="sampleAnimationBtn">
+				<span class="material-symbols-outlined"> sports_martial_arts </span>
+			</button>
+			<button class="customization-done" id="take-screenshot">
+				<span class="material-symbols-outlined" style="font-size: 36px">
+					photo_camera
+				</span>
+			</button>
+			<button id="reset">
+				<span class="material-symbols-outlined"> restart_alt </span>
+			</button>
 		</div>
 
 		<script type="module" src="./script.js"></script>

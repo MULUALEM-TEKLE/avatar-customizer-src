@@ -3,13 +3,16 @@ import { TransformControls } from "three/examples/jsm/controls/TransformControls
 import CustomTransformControls from "./CustomTransformControls";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import gsap from "gsap";
 
 let cameraPersp, cameraOrtho, currentCamera, material;
 let scene, renderer, control, envMap;
 let bilal;
 let clothingCategories, clothingMap, incompatibleItems;
-let mixer, clip, action, clip_, action_, clip__, action__;
+let mixer;
 let animations = [];
+let analyzer;
+let frequencyData, audioSource, audioContext, gainNode, source;
 
 let debugObject = {};
 debugObject.depthColor = "#222222";
@@ -17,7 +20,469 @@ debugObject.surfaceColor = "#cccccc";
 
 let clock = new THREE.Clock();
 const loader = new GLTFLoader();
+
+let isMouseDown = false;
+let initialMousePosition = new THREE.Vector2();
+let initialObjectRotation = new THREE.Euler();
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+window.addEventListener("wheel", onMouseWheel, false, { passive: false });
+window.addEventListener("mousemove", onMouseMove, false);
+window.addEventListener("touchstart", onTouchStart, false);
+window.addEventListener("touchmove", onTouchMove, false, { passive: false });
+
+let canvas = window.document.getElementById("webgl");
+
+// canvas.addEventListener("touchstart", onTouchStart, { passive: false });
+// canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+// canvas.addEventListener("touchend", onTouchEnd, { passive: false });
+
+const resetButton = document.getElementById("reset");
+resetButton.addEventListener("click", () => {
+	currentCamera.position.set(0, 0.25, 2);
+});
+
+const toggleCollapseButton = document.getElementById("toggle-collapse");
+let toggleCollapseButtonIcon = document.getElementById("toggle-collapse-icon");
+// toggleCollapseButton.innerText = ``;
+const ui = document.getElementById("ui");
+let isToggled = false;
+toggleCollapseButton.addEventListener("click", () => {
+	if (isToggled) {
+		toggleCollapseButtonIcon.innerText = "chevron_right";
+		ui.classList.toggle("collapsed");
+		isToggled = !isToggled;
+	} else {
+		toggleCollapseButtonIcon.innerText = "chevron_left";
+		ui.classList.toggle("collapsed");
+		isToggled = !isToggled;
+	}
+});
+
+let isZooming = false;
+let intersectedObject = null;
+// let isPinching = false;
+// let initialPinchDistance = 0;
+let zoomDirection = 0;
+// let touchStartDistance = 0;
+
+function onMouseMove(event) {
+	event.preventDefault();
+	mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+	mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+	checkIntersection();
+}
+
+function onMouseWheel(event) {
+	event.preventDefault();
+	if (!intersectedObject) return;
+	zoomDirection = Math.sign(event.deltaY);
+	performZoom(zoomDirection * -1);
+}
+
+let initialTouchDistance;
+const minDistance = 0.125;
+const maxDistance = 2.5;
+
+function onTouchStart(event) {
+	if (event.touches.length !== 2) return;
+	initialTouchDistance = getTouchDistance(event.touches[0], event.touches[1]);
+}
+
+function onTouchMove(event) {
+	if (event.touches.length !== 2) return;
+
+	const currentTouchDistance = getTouchDistance(
+		event.touches[0],
+		event.touches[1]
+	);
+	const zoomDirection = Math.sign(initialTouchDistance - currentTouchDistance);
+
+	// Call your zoom function with the calculated zoom direction
+	performZoomWithoutIntersection(zoomDirection * -1);
+
+	// Update the initial touch distance for the next frame
+	initialTouchDistance = currentTouchDistance;
+}
+
+function getTouchDistance(touch1, touch2) {
+	const dx = touch2.pageX - touch1.pageX;
+	const dy = touch2.pageY - touch1.pageY;
+	return Math.sqrt(dx * dx + dy * dy);
+}
+
+function performZoomWithoutIntersection(zoomDirection) {
+	const camera = currentCamera;
+	const zoomAmount = 0.125 * zoomDirection;
+	const zoomVector = camera
+		.getWorldDirection(new THREE.Vector3())
+		.multiplyScalar(zoomAmount);
+
+	// Calculate the new camera position after applying the zoom vector
+	const newCameraPosition = camera.position.clone().add(zoomVector);
+	const distanceFromInitialPosition = newCameraPosition.distanceTo(
+		initialCameraPosition
+	);
+
+	// alert(distanceFromInitialPosition);
+
+	// Check if the new camera position is within the allowed zoom bounds
+	if (
+		distanceFromInitialPosition <= minDistance ||
+		distanceFromInitialPosition >= maxDistance
+	) {
+		return;
+	}
+
+	camera.position.add(zoomVector);
+}
+
+// function performZoomWithoutIntersection(zoomDirection) {
+// 	const camera = currentCamera;
+// 	const zoomAmount = 0.01 * zoomDirection;
+// 	const zoomVector = camera
+// 		.getWorldDirection(new THREE.Vector3())
+// 		.multiplyScalar(zoomAmount);
+
+// 	// Calculate the new camera position after applying the zoom vector
+// 	const newCameraPosition = camera.position.clone().add(zoomVector);
+// 	const distanceFromInitialPosition = newCameraPosition.distanceTo(
+// 		initialCameraPosition
+// 	);
+
+// 	// Check if the new camera position is within the allowed zoom bounds
+// 	if (
+// 		distanceFromInitialPosition < minDistance ||
+// 		distanceFromInitialPosition > maxDistance
+// 	) {
+// 		return;
+// 	}
+
+// 	camera.position.add(zoomVector);
+// }
+
+/* function onTouchStart(event) {
+	if (event.touches.length === 2) {
+		isPinching = true;
+		initialPinchDistance = getPinchDistance(event);
+		event.preventDefault();
+	}
+}
+
+function onTouchMove(event) {
+	if (isPinching) {
+		const newPinchDistance = getPinchDistance(event);
+		const zoomDirection = newPinchDistance - initialPinchDistance;
+		isZooming = true;
+		performZoom(zoomDirection);
+		initialPinchDistance = newPinchDistance;
+		event.preventDefault();
+	}
+}
+
+function onTouchEnd(event) {
+	if (event.touches.length < 2) {
+		isPinching = false;
+		isZooming = false;
+		initialPinchDistance = 0;
+		event.preventDefault();
+	}
+}
+
+function getPinchDistance(event) {
+	const dx = event.touches[0].clientX - event.touches[1].clientX;
+	const dy = event.touches[0].clientY - event.touches[1].clientY;
+	return Math.sqrt(dx * dx + dy * dy);
+} */
+
+function checkIntersection() {
+	if (!bilal) return;
+	const camera = currentCamera;
+	raycaster.setFromCamera(mouse, camera);
+
+	// Filter out only visible children
+	const visibleChildren = bilal.children[0].children.filter(
+		(child) => child.visible
+	);
+
+	// Pass visibleChildren array to intersectObjects
+	const intersects = raycaster.intersectObjects(visibleChildren, true);
+
+	if (intersects.length > 0) {
+		intersectedObject = intersects[0];
+		isZooming = true;
+	} else {
+		isZooming = false;
+		intersectedObject = null;
+	}
+}
+
+function checkZoomBounds(newCameraPosition) {
+	const distanceToTarget = newCameraPosition.distanceTo(intersectionPoint);
+	const initialDistanceToTarget =
+		initialCameraPosition.distanceTo(intersectionPoint);
+	const maxDistance = initialDistanceToTarget * 0.75;
+
+	if (distanceToTarget >= initialDistanceToTarget) {
+		// If the new position is farther than the initial camera position, set it to the initial position
+		camera.position.copy(initialCameraPosition);
+	} else if (distanceToTarget <= maxDistance) {
+		// If the new position is closer than 3/4th the distance between the initial position and the intersection point,
+		// set it to the closest allowed position
+		const direction = new THREE.Vector3()
+			.subVectors(intersectionPoint, initialCameraPosition)
+			.normalize();
+		camera.position
+			.copy(initialCameraPosition)
+			.addScaledVector(direction, initialDistanceToTarget - maxDistance);
+	} else {
+		// Otherwise, set the camera position to the new position
+		camera.position.copy(newCameraPosition);
+	}
+}
+
+const initialCameraPosition = new THREE.Vector3(0, 0.25, 2);
+
+function performZoom(zoomDirection) {
+	// alert("zooming");
+	if (!isZooming || !intersectedObject) return;
+
+	const camera = currentCamera;
+
+	const intersectionPoint = intersectedObject.point;
+	const cameraToPoint = intersectionPoint.clone().sub(camera.position);
+	const distanceToIntersection = cameraToPoint.length();
+	const zoomAmount = 0.025 * distanceToIntersection * zoomDirection;
+
+	// Calculate the minimum and maximum allowed distances
+	const minDistance =
+		initialCameraPosition.distanceTo(intersectionPoint) * 0.75;
+	const maxDistance = initialCameraPosition.distanceTo(intersectionPoint);
+
+	console.log(
+		`minDistance: ${minDistance}, maxDistance: ${maxDistance}, zoomAmount: ${zoomAmount}`
+	);
+
+	// Calculate the new camera position
+	const zoomVector = cameraToPoint.normalize().multiplyScalar(zoomAmount);
+	const newCameraPosition = camera.position.clone().add(zoomVector);
+	const newDistanceToIntersection =
+		newCameraPosition.distanceTo(intersectionPoint);
+
+	// Check if the new camera position is within the allowed zoom bounds
+	if (
+		(zoomDirection < 0 && newDistanceToIntersection > 2.5) ||
+		(zoomDirection > 0 && newDistanceToIntersection < 0.5)
+	) {
+		return;
+	}
+
+	camera.position.copy(newCameraPosition);
+	// camera.lookAt(intersectionPoint);
+}
+
+let screenshotButton = document.getElementById("take-screenshot");
+screenshotButton.addEventListener("click", takeScreenshot);
+let clothingNamesDiv = document.getElementById("clothing-names");
+
+function takeScreenshot() {
+	// const screenshotCanvas = document.getElementById("webgl");
+	// const ctx = screenshotCanvas.getContext("2d");
+	const width = renderer.domElement.width;
+	const height = renderer.domElement.height;
+	let ui = document.getElementById("avatar-customizer-ui");
+
+	// Hide the UI
+	ui.style.display = "none";
+
+	renderer.render(scene, currentCamera);
+
+	// screenshotCanvas.width = width;
+	// screenshotCanvas.height = height;
+
+	const dataURL = renderer.domElement.toDataURL("image/png");
+	// const dataURL = screenshotCanvas.toDataURL("image/png");
+	// Update clothing names
+	clothingNamesDiv.style.display = "flex";
+	updateClothingNames();
+	// Download the image
+	const link = document.createElement("a");
+	link.href = dataURL;
+	link.download = "avatar_screenshot.png";
+	link.click();
+
+	// Show the UI
+	ui.style.display = "block";
+	clothingNamesDiv.style.display = "none";
+}
+
+function updateClothingNames() {
+	let names = "<ul>";
+	for (const key in clothingCategories) {
+		clothingCategories[key].forEach((component) => {
+			if (component.visible) {
+				console.log(component.name);
+				names += `<li>${component.name}</li>`;
+			}
+		});
+	}
+	names += "</ul>";
+	clothingNamesDiv.innerHTML = names;
+}
+
+function playClickSound() {
+	const audio = new Audio("/audios/select.mp4");
+	audio.volume = 0.5;
+	audio.play();
+}
+
+function setObjectRotationEventListeneres() {
+	document.addEventListener("mousedown", (event) => {
+		isMouseDown = true;
+		initialMousePosition.set(event.clientX, event.clientY);
+		initialObjectRotation.copy(bilal.rotation);
+	});
+
+	document.addEventListener("mouseup", () => {
+		isMouseDown = false;
+	});
+
+	document.addEventListener("mousemove", (event) => {
+		if (!isMouseDown) return;
+		const currentMousePosition = new THREE.Vector2(
+			event.clientX,
+			event.clientY
+		);
+		handleObjectRotation(currentMousePosition);
+	});
+
+	document.addEventListener("touchstart", (event) => {
+		isMouseDown = true;
+		initialMousePosition.set(
+			event.touches[0].clientX,
+			event.touches[0].clientY
+		);
+		initialObjectRotation.copy(bilal.rotation);
+	});
+
+	document.addEventListener("touchend", () => {
+		isMouseDown = false;
+	});
+
+	document.addEventListener("touchmove", (event) => {
+		if (!isMouseDown) return;
+		const currentMousePosition = new THREE.Vector2(
+			event.touches[0].clientX,
+			event.touches[0].clientY
+		);
+		handleObjectRotation(currentMousePosition);
+	});
+}
+
+function handleObjectRotation(currentMousePosition) {
+	const deltaMousePosition = currentMousePosition
+		.clone()
+		.sub(initialMousePosition);
+	const rotationSpeed = 0.01; // Adjust this value to control the rotation speed
+
+	bilal.rotation.y =
+		initialObjectRotation.y + deltaMousePosition.x * rotationSpeed;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+	audioContext = new (window.AudioContext || window.webkitAudioContext)();
+	audioSource = new Audio();
+	audioSource.src = "/audios/demo.mp3";
+	audioSource.load();
+
+	analyzer = audioContext.createAnalyser();
+	analyzer.fftSize = 256;
+	gainNode = audioContext.createGain();
+	source = audioContext.createMediaElementSource(audioSource);
+	source.connect(gainNode);
+	gainNode.connect(analyzer);
+	analyzer.connect(audioContext.destination);
+
+	frequencyData = new Uint8Array(analyzer.frequencyBinCount);
+	// setVolume(0.3);
+});
+
+let audioPlaying = false;
+let audioPlayIcon = document.getElementById("audio-play-icon");
+async function startAudioPlayback() {
+	if (!audioPlaying) {
+		if (audioContext.state === "suspended") {
+			await audioContext.resume();
+		}
+		setVolume(document.getElementById("volumeControl").value / 100);
+		audioSource.play();
+		audioPlaying = true;
+		audioPlayIcon.innerText = "pause";
+	} else {
+		audioSource.pause();
+		audioPlaying = false;
+		audioPlayIcon.innerText = "play_arrow";
+	}
+}
+
+function setVolume(volume) {
+	gainNode.gain.value = volume;
+}
+
+let isMuted = false;
+let audioMuteIcon = document.getElementById("audio-mute-icon");
+let prevVolume;
+function toggleMute() {
+	if (isMuted) {
+		setVolume(prevVolume / 100); // Restore the volume to the previous value; // Restore the volume to full
+		audioMuteIcon.innerText = "volume_up";
+		gsap.to(document.getElementById("volumeControl"), {
+			value: prevVolume,
+			duration: 0.5,
+		});
+	} else {
+		audioMuteIcon.innerText = "volume_off";
+		setVolume(0); // Mute the audio
+		prevVolume = document.getElementById("volumeControl").value;
+		gsap.to(document.getElementById("volumeControl"), {
+			value: 0,
+			duration: 0.5,
+		});
+	}
+	isMuted = !isMuted;
+}
+
+function playAudio() {
+	audioSource.load();
+	audioSource.play();
+}
+
+function setupAudioEventListeners() {
+	const muteAudioButton = document.getElementById("muteAudio");
+	muteAudioButton.addEventListener("click", toggleMute);
+
+	const volumeControl = document.getElementById("volumeControl");
+	volumeControl.addEventListener("input", (event) => {
+		const volume = event.target.value / 100;
+		prevVolume = volume;
+		if (volume > 0) {
+			audioMuteIcon.innerText = "volume_up";
+			isMuted = false;
+		} else {
+			audioMuteIcon.innerText = "volume_off";
+			isMuted = true;
+		}
+		setVolume(volume);
+	});
+
+	const startAudioButton = document.getElementById("startAudio");
+	startAudioButton.addEventListener("click", startAudioPlayback);
+}
+
 init();
+
 function setupEventListeners() {
 	const sampleAnimationBtn = document.getElementById("sampleAnimationBtn");
 	let currentAnimation = 0;
@@ -72,7 +537,7 @@ function setupEventListeners() {
 		}
 	});
 
-	document.addEventListener("keydown", (e) => {
+	document.addEventListener("keypress", (e) => {
 		if (e.code === "Space") {
 			console.log("jumping");
 			if (!isJumping) {
@@ -84,16 +549,16 @@ function setupEventListeners() {
 		}
 	});
 
-	document.addEventListener("keyup", (e) => {
-		if (e.code === "Space") {
-			if (isJumping) {
-				playAnimation(idleAnimation);
-				crossfade(currentAnimation, idleAnimation);
-				currentAnimation = idleAnimation;
-				isJumping = false;
-			}
-		}
-	});
+	// document.addEventListener("keyup", (e) => {
+	// 	if (e.code === "Space") {
+	// 		if (isJumping) {
+	// 			playAnimation(idleAnimation);
+	// 			crossfade(currentAnimation, idleAnimation);
+	// 			currentAnimation = idleAnimation;
+	// 			isJumping = false;
+	// 		}
+	// 	}
+	// });
 }
 
 //create a function that creates and sets parameters for the renderer
@@ -106,6 +571,13 @@ function createRenderer() {
 	renderer.outputEncoding = THREE.sRGBEncoding;
 	renderer.toneMapping = THREE.ACESFilmicToneMapping;
 	document.body.appendChild(renderer.domElement);
+
+	renderer.domElement.addEventListener("touchstart", onTouchStart, {
+		passive: false,
+	});
+	renderer.domElement.addEventListener("touchmove", onTouchMove, {
+		passive: false,
+	});
 }
 
 // functions to create and add camera to the scene
@@ -145,14 +617,16 @@ function createSceneAndLights() {
 // function to add transform controls and add it to the scene
 function addTransformControls() {
 	control = new TransformControls(currentCamera, renderer.domElement);
+	console.log(control);
 	control.position.y = 1;
+	// control.scale.y = 10;
 	control.setMode("rotate");
 	control.rotationSpeed = 3;
 	control.showX = false;
 	control.showZ = false;
 	control.traverse((child) => {
 		if (child.type === "TransformControlsGizmo") {
-			child.visible = false;
+			// child.visible = false;
 		}
 	});
 }
@@ -288,6 +762,10 @@ function addGroundMesh() {
 				value: 0,
 			},
 
+			uAudioFrequency: {
+				value: 0,
+			},
+
 			uBigWavesElevation: {
 				value: 0,
 			},
@@ -334,6 +812,8 @@ function addGroundMesh() {
 		uniform float uSmallWavesFrequency;
 		uniform float uSmallWavesSpeed;
 		uniform float uSmallWavesIteration;
+
+		uniform float uAudioFrequency;
 
 		varying float vElevation;
 
@@ -396,8 +876,6 @@ function categorizeClothingItems(child) {
 		return "bags";
 	} else if (child.name.endsWith("_hoodie")) {
 		return "hoodies";
-	} else if (child.name.endsWith("_boot")) {
-		return "boots";
 	} else if (child.name.endsWith("_tshirt")) {
 		return "tshirts";
 	} else if (child.name.endsWith("_mask")) {
@@ -474,33 +952,20 @@ function initializeClothingCategoriesAndMaps(model) {
 	initializeClothingItemsVisibility(clothingCategories.coveralls, -1);
 	initializeClothingItemsVisibility(clothingCategories.pants, 2);
 	initializeClothingItemsVisibility(clothingCategories.bags, 0);
-	initializeClothingItemsVisibility(clothingCategories.boots, 0);
+
 	initializeClothingItemsVisibility(clothingCategories.hoodies, -1);
 	initializeClothingItemsVisibility(clothingCategories.tshirts, -1);
 	initializeClothingItemsVisibility(clothingCategories.masks, -1);
-
-	// Object.entries(clothingCategories).forEach(
-	// 	([categoryKey, categoryChildren]) => {
-	// 		if (categoryKey === "masks" || categoryKey === "tshirts") {
-	// 			console.log(categoryChildren);
-	// 			categoryChildren[0].visible = false;
-
-	// 			// initializeClothingItemsVisibility(categoryChildren, -1);
-	// 		} else {
-	// 			initializeClothingItemsVisibility(categoryChildren, 0);
-	// 		}
-	// 	}
-	// );
 
 	clothingMap = new Map([
 		["Jackets", clothingCategories.jackets],
 		["Coveralls", clothingCategories.coveralls],
 		["Pants", clothingCategories.pants],
-		["Bags", clothingCategories.bags],
-		["Boots", clothingCategories.boots],
+		// ["Boots", clothingCategories.boots],
 		["Hoodies", clothingCategories.hoodies],
 		["Tshirt", clothingCategories.tshirts],
 		["Mask", clothingCategories.masks],
+		["Bags", clothingCategories.bags],
 		["Base-Top", clothingCategories.baseTop],
 		["Base-Bottom", clothingCategories.baseBottom],
 		["Base-Boot", clothingCategories.baseBoot],
@@ -512,8 +977,10 @@ function initializeClothingCategoriesAndMaps(model) {
 // function that take a model and proccess and place it in the scene
 function processModel(model) {
 	model.position.y = -0.9;
-	model.position.x = -0.5;
+	// model.position.x = -0.125;
 	model.position.z = -0.25;
+
+	// currentCamera.lookAt(model.position);
 
 	model.traverse((child) => {
 		if (child.isMesh) {
@@ -532,8 +999,10 @@ function processModel(model) {
 		}
 	});
 	scene.add(model);
-	control.attach(model);
-	scene.add(control);
+	if (control) {
+		control.attach(model);
+		scene.add(control);
+	}
 	tick();
 }
 
@@ -624,8 +1093,10 @@ function createNavigationButton(direction, key) {
 	button.addEventListener("click", () => {
 		if (direction === "prev") {
 			handlePrevButtonClick(key);
+			playClickSound();
 		} else {
 			handleNextButtonClick(key);
+			playClickSound();
 		}
 	});
 
@@ -638,6 +1109,7 @@ function createItemIcon(childMesh, sectionKey) {
 	icon.id = childMesh.name;
 	icon.addEventListener("click", () => {
 		toggleComponentVisibility(childMesh, sectionKey);
+		playClickSound();
 	});
 
 	return icon;
@@ -813,10 +1285,12 @@ function onWindowResize() {
 }
 
 function init() {
+	setupAudioEventListeners();
+	setObjectRotationEventListeneres();
 	createRenderer();
 	createCamera();
 	createSceneAndLights();
-	addTransformControls();
+	// addTransformControls();
 	loadEnvMap();
 	addGroundMesh();
 	loadModel("/models/bilal.glb");
@@ -826,6 +1300,16 @@ function init() {
 
 function tick() {
 	// if (bilal) bilal.rotation.y += 0.01;
+	analyzer.getByteFrequencyData(frequencyData);
+
+	const maxFrequency = Math.max(...frequencyData);
+	const normalizedFrequency = maxFrequency / 255;
+	// console.log(normalizedFrequency);
+
+	// Pass the normalized frequency to the shader
+	material.uniforms.uSmallWavesElevation.value = normalizedFrequency * 0.075;
+	// checkIntersection();
+
 	renderer.render(scene, currentCamera);
 	if (material) material.uniforms.uTime.value += 0.02;
 	if (mixer) mixer.update(clock.getDelta());

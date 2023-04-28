@@ -16,6 +16,15 @@ body {
 	outline: none;
 }
 
+.unselectable {
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+
 .avatar-customizer-ui {
 	position: fixed;
 	top: 0;
@@ -31,6 +40,7 @@ body {
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
+	align-items: end;
 	gap: 20px;
 
 	z-index: 100;
@@ -147,10 +157,22 @@ body {
 	font-size: 32px;
 }
 
-.avatar-customizer-ui .buttons-container {
+.buttons-container {
 	width: 100%;
 	display: flex;
-	justify-content: end;
+	justify-content: start;
+	z-index: 1000;
+	position: fixed;
+	bottom: 0;
+	gap: 10px;
+}
+
+.buttons-container button {
+	background-color: transparent;
+	color: white;
+	/* font-weight: 700; */
+	border: 1px solid #007bff;
+	/* border-radius: 100%; */
 }
 
 .avatar-customizer-ui .buttons-container .customization-done {
@@ -233,4 +255,89 @@ body {
 
 .items img.active {
 	border: 2px solid #007bff; /* Adjust the style as needed */
+}
+
+.range-container {
+	display: flex;
+	align-items: center;
+}
+
+input[type="range"] {
+	/* margin-top: 10px; */
+	-webkit-appearance: none;
+	/* background-color: #0f0; */
+	width: 75px;
+	height: 1px;
+	outline: none !important;
+	appearance: none;
+	border: none;
+	/* border-radius: 30px; */
+}
+
+input[type="range"]::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 15px;
+	height: 25px;
+	background: #007bff;
+	cursor: crosshair;
+	border-radius: 0px;
+	outline: none;
+}
+input[type="range"]::-moz-range-thumb {
+	width: 18px;
+	height: 18px;
+	background: #f1f9f4;
+	cursor: pointer;
+	border-radius: 50%;
+	border: none;
+	outline: none;
+}
+input[type="range"]::-moz-range-progress {
+	background-color: #fff;
+	height: 100%;
+	border-radius: 30px;
+	border: none;
+}
+
+.clothing-names {
+	position: fixed;
+	bottom: 10%;
+	right: 0;
+	height: 30%;
+	width: 40%;
+	border: 1px solid white;
+	z-index: 1000;
+	display: none;
+}
+
+.avatar-customizer-ui {
+	/* position: relative; */
+}
+
+.toggle-collapse {
+	height: 75px;
+	width: 75px;
+	background-color: transparent;
+	border: none;
+	color: white;
+	font-size: 36px;
+}
+
+.toggle-collapse span {
+	/* position: absolute;
+	right: 0;
+	top: 0; */
+	font-size: 48px;
+	z-index: 1;
+	/* background-color: transparent; */
+	color: white;
+}
+
+.ui {
+	transition: transform 0.3s ease;
+}
+
+.ui.collapsed {
+	transform: translateX(100%);
 }
