@@ -18,8 +18,9 @@ let debugObject = {};
 debugObject.depthColor = "#222222";
 debugObject.surfaceColor = "#cccccc";
 
+let loadingManager, loader;
+
 let clock = new THREE.Clock();
-const loader = new GLTFLoader();
 
 let isMouseDown = false;
 let initialMousePosition = new THREE.Vector2();
@@ -486,9 +487,9 @@ init();
 function setupEventListeners() {
 	const sampleAnimationBtn = document.getElementById("sampleAnimationBtn");
 	let currentAnimation = 0;
-	let walkAnimation = 5;
-	let idleAnimation = 10;
-	let jumpAnimation = 4;
+	// let walkAnimation = 5;
+	let idleAnimation = 0;
+	// let jumpAnimation = 4;
 	playAnimation(idleAnimation);
 	let isWalking = false;
 	let isJumping = false;
@@ -504,7 +505,7 @@ function setupEventListeners() {
 		crossfade(currentAnimation, nextAnimation);
 		currentAnimation = nextAnimation;
 	});
-
+	/*
 	document.addEventListener("keydown", (e) => {
 		if (
 			e.code === "KeyW" ||
@@ -559,6 +560,7 @@ function setupEventListeners() {
 	// 		}
 	// 	}
 	// });
+ */
 }
 
 //create a function that creates and sets parameters for the renderer
@@ -1007,7 +1009,7 @@ function processModel(model) {
 }
 
 // function to load and process animations for the model
-function processAnimations(animations, model) {
+function processAnimations(model) {
 	// Create an AnimationMixer instance and load the first animation clip
 	mixer = new THREE.AnimationMixer(model);
 	// playAnimation(10);
@@ -1034,14 +1036,43 @@ function crossfade(animationFrom, animationTo, duration = null) {
 	fromAction.crossFadeTo(toAction, duration, true);
 }
 
+const loadingScreen = document.getElementById("loading-screen");
+const progressBar = document.getElementById("progress");
+
+function setupLoadingManager() {
+	loadingManager = new THREE.LoadingManager();
+
+	// Update the progress bar with the percentage of assets loaded
+	loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+		const progress = (itemsLoaded / itemsTotal) * 100;
+		progressBar.style.width = progress + "%";
+	};
+
+	// Hide the loading screen when all assets are loaded
+	loadingManager.onLoad = () => {
+		loadingScreen.style.display = "none";
+	};
+}
+
 // function that takes a url of a model and loads it and process everything
 function loadModel(url) {
 	loader.load(url, (gltf) => {
 		bilal = gltf.scene;
-		animations.push(...gltf.animations);
+		console.log(gltf.animations);
+		animations.push(
+			...[
+				gltf.animations[10],
+				gltf.animations[9],
+				gltf.animations[13],
+				gltf.animations[12],
+				gltf.animations[0],
+				gltf.animations[2],
+			]
+		);
+		console.log(animations);
 		initializeClothingCategoriesAndMaps(bilal);
 		processModel(bilal);
-		processAnimations(animations, bilal);
+		processAnimations(bilal);
 		setupEventListeners();
 	});
 }
@@ -1285,6 +1316,8 @@ function onWindowResize() {
 }
 
 function init() {
+	setupLoadingManager();
+	loader = new GLTFLoader(loadingManager);
 	setupAudioEventListeners();
 	setObjectRotationEventListeneres();
 	createRenderer();
