@@ -45,13 +45,55 @@
 				transition: width 0.5s ease; /* Add this line */
 			}
 		</style>
+
+		<style>
+			.percentage-holder {
+				height: 100%;
+				width: 100%;
+
+				position: fixed;
+				/* top: 50%;
+				left: 50%; */
+				z-index: 1000;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+
+				font-size: 10rem;
+				font-weight: bold;
+				background-color: ivory;
+			}
+			#percentage {
+				font-weight: bold;
+			}
+			.percentage-animation {
+				animation: fadeInOut 1.5s;
+			}
+			@keyframes fadeInOut {
+				0% {
+					opacity: 0;
+				}
+				50% {
+					opacity: 1;
+				}
+				100% {
+					opacity: 0;
+				}
+			}
+		</style>
 	</head>
 	<body>
-		<div id="loading-screen">
+		<div class="percentage-holder" id="percentage-holder">
+			<div id="percentage">0%</div>
+			LOADED
+		</div>
+
+		<!-- <div id="loading-screen">
 			<div id="progress-bar">
 				<div id="progress"></div>
 			</div>
-		</div>
+		</div> -->
 
 		<div id="screenshotable">
 			<canvas id="webgl" class="webgl"> </canvas>

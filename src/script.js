@@ -1036,21 +1036,39 @@ function crossfade(animationFrom, animationTo, duration = null) {
 	fromAction.crossFadeTo(toAction, duration, true);
 }
 
-const loadingScreen = document.getElementById("loading-screen");
-const progressBar = document.getElementById("progress");
+// const loadingScreen = document.getElementById("loading-screen");
+// const progressBar = document.getElementById("progress");
+const percentageDiv = document.getElementById("percentage");
+const percentageHolder = document.getElementById("percentage-holder");
 
 function setupLoadingManager() {
 	loadingManager = new THREE.LoadingManager();
 
 	// Update the progress bar with the percentage of assets loaded
 	loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
-		const progress = (itemsLoaded / itemsTotal) * 100;
-		progressBar.style.width = progress + "%";
+		console.log(url);
+		// const progress = (itemsLoaded / itemsTotal) * 100;
+		// console.log(Math.round(progress));
+		// progressBar.style.width = Math.round(progress) + "%";
+
+		percentageDiv.innerHTML =
+			Math.round((itemsLoaded / itemsTotal) * 100) + "%";
+		percentageDiv.classList.add("percentage-animation");
+		percentageHolder.classList.add("percentage-animation");
+		// setTimeout(() => {
+		// 	percentageDiv.classList.remove("percentage-animation");
+		// }, 500);
 	};
 
 	// Hide the loading screen when all assets are loaded
 	loadingManager.onLoad = () => {
-		loadingScreen.style.display = "none";
+		// loadingScreen.style.display = "none";
+		percentageDiv.classList.remove("percentage-animation");
+		percentageHolder.classList.remove("percentage-animation");
+		setTimeout(() => {
+			percentageDiv.style.display = "none";
+			percentageHolder.style.display = "none";
+		}, 500);
 	};
 }
 
