@@ -38,9 +38,9 @@ body {
 	color: white;
 
 	display: flex;
-	flex-direction: column;
+	flex-direction: row;
 	justify-content: center;
-	align-items: end;
+	align-items: center;
 	gap: 20px;
 
 	z-index: 100;
@@ -195,7 +195,7 @@ body {
 	width: 100%;
 	/* height: 10%; */
 	display: flex;
-	flex-direction: column;
+	flex-direction: row;
 	gap: 10px;
 	justify-content: start;
 	align-items: center;
@@ -311,10 +311,6 @@ input[type="range"]::-moz-range-progress {
 	display: none;
 }
 
-.avatar-customizer-ui {
-	/* position: relative; */
-}
-
 .toggle-collapse {
 	height: 75px;
 	width: 75px;
@@ -334,12 +330,14 @@ input[type="range"]::-moz-range-progress {
 	color: white;
 }
 
-.ui {
+.ui,
+.avatar-customizer-ui {
 	transition: transform 0.3s ease;
 }
 
-.ui.collapsed {
-	transform: translateX(100%);
+.ui.collapsed,
+.avatar-customizer-ui.collapsed {
+	transform: translateX(90%);
 }
 
 button {
