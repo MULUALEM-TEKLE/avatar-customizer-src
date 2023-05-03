@@ -48,7 +48,7 @@ resetButton.addEventListener("click", () => {
 const toggleCollapseButton = document.getElementById("toggle-collapse");
 let toggleCollapseButtonIcon = document.getElementById("toggle-collapse-icon");
 // toggleCollapseButton.innerText = ``;
-const ui = document.getElementById("ui");
+const ui = document.getElementById("avatar-customizer-ui");
 let isToggled = false;
 toggleCollapseButton.addEventListener("click", () => {
 	if (isToggled) {
@@ -395,7 +395,7 @@ function handleObjectRotation(currentMousePosition) {
 document.addEventListener("DOMContentLoaded", () => {
 	audioContext = new (window.AudioContext || window.webkitAudioContext)();
 	audioSource = new Audio();
-	audioSource.src = "/audios/demo.mp3";
+	audioSource.src = "/audios/alaska.mp3";
 	audioSource.load();
 
 	analyzer = audioContext.createAnalyser();
