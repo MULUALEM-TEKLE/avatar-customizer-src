@@ -49,7 +49,7 @@ const toggleCollapseButton = document.getElementById("toggle-collapse");
 let toggleCollapseButtonIcon = document.getElementById("toggle-collapse-icon");
 // toggleCollapseButton.innerText = ``;
 const ui = document.getElementById("avatar-customizer-ui");
-let isToggled = false;
+let isToggled = true;
 toggleCollapseButton.addEventListener("click", () => {
 	if (isToggled) {
 		toggleCollapseButtonIcon.innerText = "chevron_right";
@@ -395,7 +395,7 @@ function handleObjectRotation(currentMousePosition) {
 document.addEventListener("DOMContentLoaded", () => {
 	audioContext = new (window.AudioContext || window.webkitAudioContext)();
 	audioSource = new Audio();
-	audioSource.src = "/audios/alaska.mp3";
+	audioSource.src = "/audios/song.mp4";
 	audioSource.load();
 
 	analyzer = audioContext.createAnalyser();
