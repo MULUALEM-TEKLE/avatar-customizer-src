@@ -322,6 +322,25 @@ input[type="range"]::-moz-range-progress {
 	top: 50%;
 	right: 0;
 	z-index: 4000;
+
+	animation: heartbeat 1s infinite;
+}
+@keyframes heartbeat {
+	0% {
+		transform: scale(1.2);
+	}
+	14% {
+		transform: scale(1.8);
+	}
+	28% {
+		transform: scale(1.2);
+	}
+	42% {
+		transform: scale(1.8);
+	}
+	100% {
+		transform: scale(1.2);
+	}
 }
 
 .toggle-collapse span {
