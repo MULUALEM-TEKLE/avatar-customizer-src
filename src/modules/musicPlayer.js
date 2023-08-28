@@ -1,6 +1,8 @@
 import Webamp from "webamp"
 
-function initMusicPlayer() {
+function initMusicPlayer(DEVICE_TYPE) {
+	if (DEVICE_TYPE === "mobile") return
+
 	if (!Webamp.browserIsSupported()) {
 		alert("Oh no! Webamp does not work!")
 		throw new Error("What's the point of anything?")

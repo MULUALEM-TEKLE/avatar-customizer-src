@@ -125,18 +125,20 @@
 		</div>
 
 		<div class="buttons-container unselectable">
-			<button id="startAudio">
-				<span class="material-symbols-outlined" id="audio-play-icon">
-					play_arrow
-				</span>
-			</button>
-			<button id="muteAudio">
-				<span class="material-symbols-outlined" id="audio-mute-icon">
-					volume_up
-				</span>
-			</button>
-			<div class="range-container">
-				<input type="range" id="volumeControl" min="0" max="100" value="30" />
+			<div style="display: flex; gap: 4px" id="mini-music-player">
+				<button id="startAudio">
+					<span class="material-symbols-outlined" id="audio-play-icon">
+						play_arrow
+					</span>
+				</button>
+				<button id="muteAudio">
+					<span class="material-symbols-outlined" id="audio-mute-icon">
+						volume_up
+					</span>
+				</button>
+				<div class="range-container">
+					<input type="range" id="volumeControl" min="0" max="100" value="30" />
+				</div>
 			</div>
 
 			<button id="sampleAnimationBtn">

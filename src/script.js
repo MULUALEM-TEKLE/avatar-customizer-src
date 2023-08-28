@@ -21,6 +21,13 @@ import { mountScreenshotSystem } from "./modules/screenshotSystem"
 import { mountUIManager } from "./modules/userInterfaceManager"
 import { initMusicPlayer } from "./modules/musicPlayer"
 
+import UAParser from "ua-parser-js"
+
+const userAgentInfo = new UAParser()
+const DEVICE_TYPE =
+	userAgentInfo.getDevice().type == "mobile" ? "mobile" : "desktop"
+console.log(DEVICE_TYPE)
+
 let clock = new THREE.Clock()
 
 function init() {
@@ -29,10 +36,10 @@ function init() {
 	mountCharacter("/models/bilal.glb", () => {
 		mountAudioSystem()
 		mountScreenshotSystem()
-		mountUIManager()
+		mountUIManager(DEVICE_TYPE)
 		mountZoomSystem()
 		mountRotationSystem()
-		initMusicPlayer()
+		initMusicPlayer(DEVICE_TYPE)
 	})
 }
 

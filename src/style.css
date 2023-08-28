@@ -164,9 +164,17 @@ body {
 	z-index: 1000;
 	position: fixed;
 	bottom: 0;
+	left: 280px;
 	gap: 10px;
 }
 
+@media (max-width: 767px) {
+	/* Styles for small screens */
+
+	.buttons-container {
+		left: 0;
+	}
+}
 #winamp-container {
 	pointer-events: all;
 	z-index: 5000;
