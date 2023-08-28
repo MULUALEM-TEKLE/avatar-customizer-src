@@ -167,6 +167,19 @@ body {
 	gap: 10px;
 }
 
+#winamp-container {
+	pointer-events: all;
+	z-index: 5000;
+	position: absolute;
+	bottom: 10% !important;
+	left: 0;
+
+	/* height: 400px; */
+	width: 275px;
+
+	/* border: 2px solid #009851; */
+}
+
 .buttons-container button {
 	background-color: transparent;
 	color: white;
