@@ -65,6 +65,7 @@
 				font-size: 2rem;
 				font-weight: bold;
 				background-color: black;
+				opacity: 1;
 				color: ivory;
 			}
 			#percentage {
@@ -93,12 +94,26 @@
 			.toggle-collapse span {
 				color: #007bff;
 			}
+
+			.loading-gif {
+				height: 50%;
+				width: 50%;
+
+				/* border: 1px solid red; */
+
+				background-size: contain;
+				/* background-attachment: fixed; */
+				background-position: center;
+				background-repeat: no-repeat;
+			}
 		</style>
 	</head>
 	<body>
 		<div class="percentage-holder" id="percentage-holder">
-			<div id="percentage">0%</div>
-			LOADED
+			<div id="percentage" style="display: none">0%</div>
+
+			<div class="loading-gif" id="loading-gif"></div>
+			LOADING YOUR EXPERIENCE
 		</div>
 
 		<!-- <div id="loading-screen">

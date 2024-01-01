@@ -25,6 +25,9 @@ import { mountEnvironment, animateOcean } from "./modules/environment"
 
 import UAParser from "ua-parser-js"
 
+let loadingGif = document.getElementById("loading-gif")
+loadingGif.style.backgroundImage = `url('/LCPT.gif')`
+
 const userAgentInfo = new UAParser()
 const DEVICE_TYPE =
 	userAgentInfo.getDevice().type == "mobile" ? "mobile" : "desktop"
