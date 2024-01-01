@@ -21,15 +21,15 @@ function initMusicPlayer(DEVICE_TYPE) {
 			},
 		],
 		initialSkin: {
-			url: "/webampSkins/Winamp3_Classified_v5.5.wsz",
+			url: "/webampSkins/Winamp5_Classified_v5.5.wsz",
 		},
 
 		availableSkins: [
-			{ url: "/webampSkins/base-2.91.wsz", name: "skin-name" },
-			{ url: "/webampSkins/Bento_Classified.wsz", name: "skin-name" },
-			{ url: "/webampSkins/Photoshop_60_v141.wsz", name: "skin-name" },
-			{ url: "/webampSkins/Winamp3_Classified_v5.5.wsz", name: "skin-name" },
-			{ url: "/webampSkins/Winamp5_Classified_v5.5.wsz", name: "skin-name" },
+			{ url: "/webampSkins/base-2.91.wsz", name: "skin-alpha" },
+			{ url: "/webampSkins/Bento_Classified.wsz", name: "skin-beta" },
+			{ url: "/webampSkins/Photoshop_60_v141.wsz", name: "skin-gamma" },
+			{ url: "/webampSkins/Winamp3_Classified_v5.5.wsz", name: "skin-delta" },
+			{ url: "/webampSkins/Winamp5_Classified_v5.5.wsz", name: "skin-theta" },
 		],
 	})
 
