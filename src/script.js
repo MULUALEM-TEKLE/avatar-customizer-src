@@ -20,6 +20,8 @@ import { setupLoadingManager } from "./modules/loadingManager"
 import { mountScreenshotSystem } from "./modules/screenshotSystem"
 import { mountUIManager } from "./modules/userInterfaceManager"
 import { initMusicPlayer } from "./modules/musicPlayer"
+import { initializeColorPickerSystem } from "./modules/colorPickerSystem"
+import { mountEnvironment, animateOcean } from "./modules/environment"
 
 import UAParser from "ua-parser-js"
 
@@ -33,13 +35,16 @@ let clock = new THREE.Clock()
 function init() {
 	mountWorld()
 	setupLoadingManager()
-	mountCharacter("/models/bilal.glb", () => {
-		mountAudioSystem()
-		mountScreenshotSystem()
-		mountUIManager(DEVICE_TYPE)
-		mountZoomSystem()
-		mountRotationSystem()
-		initMusicPlayer(DEVICE_TYPE)
+	mountEnvironment("models/env.glb", () => {
+		mountCharacter("/models/bilal.glb", () => {
+			mountAudioSystem()
+			mountScreenshotSystem()
+			mountUIManager(DEVICE_TYPE)
+			mountZoomSystem()
+			mountRotationSystem()
+			initMusicPlayer(DEVICE_TYPE)
+			// initializeColorPickerSystem()
+		})
 	})
 }
 
@@ -56,6 +61,7 @@ function tick() {
 	if (material) material.uniforms.uTime.value += 0.02
 	if (mixer) mixer.update(clock.getDelta())
 	requestAnimationFrame(tick)
+	animateOcean()
 }
 
 init()
