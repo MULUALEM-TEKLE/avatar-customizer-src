@@ -26,7 +26,7 @@ import { mountEnvironment, animateOcean } from "./modules/environment"
 import UAParser from "ua-parser-js"
 
 let loadingGif = document.getElementById("loading-gif")
-loadingGif.style.backgroundImage = `url('/LCPT.gif')`
+loadingGif.style.backgroundImage = `url('/bilal_loading_screen.gif')`
 
 const userAgentInfo = new UAParser()
 const DEVICE_TYPE =
