@@ -12,15 +12,10 @@ function setupLoadingManager() {
 	// Update the progress bar with the percentage of assets loaded
 	loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
 		percentageDiv.innerHTML = Math.round((itemsLoaded / itemsTotal) * 100) + "%"
-		// percentageDiv.classList.add("percentage-animation")
-		// percentageHolder.classList.add("percentage-animation")
 	}
 
 	// Hide the loading screen when all assets are loaded
 	loadingManager.onLoad = () => {
-		// percentageDiv.classList.remove("percentage-animation")
-		// percentageHolder.classList.remove("percentage-animation")
-		// setTimeout(() => {
 		gsap.to(percentageHolder, {
 			opacity: 0,
 			duration: 1,
@@ -29,7 +24,6 @@ function setupLoadingManager() {
 				percentageHolder.style.display = "none"
 			},
 		})
-		// }, 1000)
 	}
 
 	const draco = new DRACOLoader()
