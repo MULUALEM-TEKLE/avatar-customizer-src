@@ -38,8 +38,8 @@ let clock = new THREE.Clock()
 function init() {
 	mountWorld()
 	setupLoadingManager()
-	mountEnvironment("models/env.glb", () => {
-		mountCharacter("/models/bilal.glb", () => {
+	mountCharacter("/models/bilal.glb", () => {
+		mountEnvironment("models/env.glb", () => {
 			mountAudioSystem()
 			mountScreenshotSystem()
 			mountUIManager(DEVICE_TYPE)
