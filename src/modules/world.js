@@ -1,308 +1,522 @@
-import * as THREE from "three";
-import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader";
+import * as THREE from "three"
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js"
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js"
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js"
 
-let cameraPersp, currentCamera, material, scene, renderer, envMap;
-let debugObject = {};
-debugObject.depthColor = "#222222";
-debugObject.surfaceColor = "#cccccc";
+import { CAMERA } from "./config.js"
+import { LIVE, TIERS, onPreset } from "./presets.js"
+import { cnoise, waves, dither } from "./shaders/common.glsl.js"
 
-//create a function that creates and sets parameters for the renderer
-function createRenderer() {
+export let renderer = null
+export let scene = null
+export let camera = null
+/** Everything that is scenery rather than product — hidden for transparent exports. */
+export let backdrop = null
+
+let composer = null
+let bloomPass = null
+let renderTarget = null
+
+let key = null
+let fill = null
+let rim = null
+let hemi = null
+
+let ground = null
+let groundMaterial = null
+let contactShadow = null
+let groundBounce = null
+
+let tier = TIERS.medium
+let floorY = -0.9
+
+/* ------------------------------------------------------------- renderer */
+
+function createRenderer(canvas) {
+	// Stated rather than assumed: every colour decision below depends on it.
+	THREE.ColorManagement.enabled = true
+
 	renderer = new THREE.WebGLRenderer({
+		canvas,
 		antialias: true,
-	});
-	renderer.setPixelRatio(window.devicePixelRatio);
-	renderer.setSize(window.innerWidth, window.innerHeight);
-	renderer.outputEncoding = THREE.sRGBEncoding;
-	renderer.toneMapping = THREE.ACESFilmicToneMapping;
-	document.body.appendChild(renderer.domElement);
+		powerPreference: "high-performance",
+		stencil: false,
+		depth: true,
+		// Needed so photo mode can export with a transparent background.
+		alpha: true,
+		preserveDrawingBuffer: false,
+	})
+
+	renderer.outputColorSpace = THREE.SRGBColorSpace
+	renderer.toneMapping = THREE.ACESFilmicToneMapping
+	// PCFSoftShadowMap is deprecated in r185 and silently downgrades to PCF, so
+	// ask for PCF directly rather than shipping a warning on every load.
+	renderer.shadowMap.type = THREE.PCFShadowMap
 }
 
-// functions to create and add camera to the scene
 function createCamera() {
-	const aspect = window.innerWidth / window.innerHeight;
-
-	cameraPersp = new THREE.PerspectiveCamera(50, aspect, 0.01, 30000);
-	currentCamera = cameraPersp;
-
-	currentCamera.position.set(0, 0.25, 2);
-	currentCamera.lookAt(0, 0, 0);
+	camera = new THREE.PerspectiveCamera(
+		CAMERA.fov,
+		window.innerWidth / window.innerHeight,
+		CAMERA.near,
+		CAMERA.far,
+	)
+	camera.position.set(...CAMERA.position)
+	camera.lookAt(new THREE.Vector3(...CAMERA.target))
 }
 
-// function to setup scene and lights
-function createSceneAndLights() {
-	scene = new THREE.Scene();
+/* --------------------------------------------------------------- lights */
 
-	const ambientLight = new THREE.AmbientLight(0xffffff, 0.25);
-	scene.add(ambientLight);
+function createLights() {
+	// The old rig was a flat AmbientLight plus two unaimed directionals, which is
+	// exactly what makes roughness-0.9 fabric read as plastic. Ambient is gone;
+	// the diffuse ambient term now comes from the IBL.
+	const focus = new THREE.Object3D()
+	focus.position.set(0, 0, -0.25)
+	scene.add(focus)
 
-	const light = new THREE.DirectionalLight(0xffffff, 1 / 1);
-	light.position.set(10, 0, 10);
+	key = new THREE.DirectionalLight(LIVE.keyColor, LIVE.keyIntensity)
+	key.position.set(2.3, 3.1, 2.7)
+	key.target = focus
+	key.castShadow = true
 
-	const light_ = new THREE.DirectionalLight(0xffffff, 1 / 1);
-	light_.position.set(-10, 1, 10);
-	scene.add(light, light_);
+	fill = new THREE.DirectionalLight(LIVE.fillColor, LIVE.fillIntensity)
+	fill.position.set(-2.8, 1.3, 2.2)
+	fill.target = focus
+
+	rim = new THREE.DirectionalLight(LIVE.rimColor, LIVE.rimIntensity)
+	rim.target = focus
+
+	// Colours are the shared LIVE instances, so a preset crossfade reaches the
+	// lights without anyone pushing values into them.
+	key.color = LIVE.keyColor
+	fill.color = LIVE.fillColor
+	rim.color = LIVE.rimColor
+
+	scene.add(key, fill, rim)
+	configureShadow(tier.shadowMapSize || 1024)
 }
 
-// function to load envmap
-function loadEnvMap() {
-	new RGBELoader().load("hdri/alps_field_2k.hdr", (texture) => {
-		texture.mapping = THREE.EquirectangularReflectionMapping;
-		envMap = texture;
-	});
+/**
+ * A frustum sized to the character and nothing else. Only the avatar casts or
+ * receives, so this buys self-shadowing — coat over shoulder, strap on back,
+ * chin on chest. Grounding comes from the contact shadow, not from here.
+ */
+function configureShadow(mapSize) {
+	key.shadow.mapSize.set(mapSize, mapSize)
+
+	const cam = key.shadow.camera
+	cam.left = -1.35
+	cam.right = 1.35
+	cam.top = 1.55
+	cam.bottom = -1.55
+	cam.near = 1
+	cam.far = 9
+	cam.updateProjectionMatrix()
+
+	// Scaled to the world-space texel width: 2.70 / mapSize.
+	const worldTexel = 2.7 / mapSize
+	key.shadow.normalBias = 2.3 * worldTexel
+	key.shadow.bias = (-0.07 * worldTexel) / 8
 }
 
-// function to add the ground mesh with shader material
-function addGroundMesh() {
-	const geometry = new THREE.PlaneGeometry(20, 5, 800, 200);
+/* ------------------------------------------------------------------ IBL */
 
-	// move it down and rotate it to be a ground
-	geometry.rotateX(-Math.PI / 2);
-	geometry.translate(0, -1.25, 0);
+let pmrem = null
 
-	const glslFunctions = `
-		float bigWaves(vec3 modelPosition, float time, float elevation, vec2 frequency, float speed) {
-		return sin(modelPosition.x * frequency.x + time * speed) * sin(modelPosition.z * frequency.y + time * speed) * elevation;
-		}
+export function applyEnvMap(hdrTexture) {
+	if (!pmrem) {
+		pmrem = new THREE.PMREMGenerator(renderer)
+		pmrem.compileEquirectangularShader()
+	}
+	hdrTexture.mapping = THREE.EquirectangularReflectionMapping
+	scene.environment = pmrem.fromEquirectangular(hdrTexture).texture
+	hdrTexture.dispose()
+	pmrem.dispose()
+	pmrem = null
 
-		float smallWaves(vec3 modelPosition, float time, float elevation, float frequency, float speed, int iterations) {
-		float smallWavesElevation = 0.0;
-		for (int i = 1; i <= 4; i++) {
-			smallWavesElevation -= abs(cnoise(vec3(modelPosition.xz * frequency * float(i), time * speed)) * elevation / float(i));
-		}
-		return smallWavesElevation;
-		}
+	if (hemi) {
+		scene.remove(hemi)
+		hemi.dispose()
+		hemi = null
+	}
+}
 
-		vec3 blendColors(float elevation, vec3 depthColor, vec3 surfaceColor, float colorOffset, float colorMultiplier) {
-		float mixStrength = (elevation + colorOffset) * colorMultiplier;
-		return mix(depthColor, surfaceColor, smoothstep(0.0, 1.0, mixStrength));
-		}
-	`;
+/** Stand-in for the low tier, which never downloads the HDR at all. */
+function useHemisphereLight() {
+	if (hemi) return
+	hemi = new THREE.HemisphereLight(LIVE.skyTop, LIVE.horizon, 0.55)
+	hemi.color = LIVE.skyTop
+	hemi.groundColor = LIVE.horizon
+	scene.add(hemi)
+}
 
-	const glslUtilFunctions = `
+/* ------------------------------------------------------------- backdrop */
 
-		// Classic Perlin 3D Noise
-		// by Stefan Gustavson
-		//
-		vec4 permute(vec4 x)
-		{
-			return mod(((x*34.0)+1.0)*x, 289.0);
-		}
-		vec4 taylorInvSqrt(vec4 r)
-		{
-			return 1.79284291400159 - 0.85373472095314 * r;
-		}
-		vec3 fade(vec3 t)
-		{
-			return t*t*t*(t*(t*6.0-15.0)+10.0);
-		}
+const GROUND_VERTEX = /* glsl */ `
+uniform float uTime;
+uniform float uBigWavesElevation;
+uniform vec2 uBigWavesFrequency;
+uniform float uBigWavesSpeed;
+uniform float uSmallWavesElevation;
+uniform float uSmallWavesFrequency;
+uniform float uSmallWavesSpeed;
+uniform int uSmallWavesIteration;
 
-		float cnoise(vec3 P)
-		{
-			vec3 Pi0 = floor(P); // Integer part for indexing
-			vec3 Pi1 = Pi0 + vec3(1.0); // Integer part + 1
-			Pi0 = mod(Pi0, 289.0);
-			Pi1 = mod(Pi1, 289.0);
-			vec3 Pf0 = fract(P); // Fractional part for interpolation
-			vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
-			vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
-			vec4 iy = vec4(Pi0.yy, Pi1.yy);
-			vec4 iz0 = Pi0.zzzz;
-			vec4 iz1 = Pi1.zzzz;
+varying float vElevation;
 
-			vec4 ixy = permute(permute(ix) + iy);
-			vec4 ixy0 = permute(ixy + iz0);
-			vec4 ixy1 = permute(ixy + iz1);
+#include <fog_pars_vertex>
 
-			vec4 gx0 = ixy0 / 7.0;
-			vec4 gy0 = fract(floor(gx0) / 7.0) - 0.5;
-			gx0 = fract(gx0);
-			vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
-			vec4 sz0 = step(gz0, vec4(0.0));
-			gx0 -= sz0 * (step(0.0, gx0) - 0.5);
-			gy0 -= sz0 * (step(0.0, gy0) - 0.5);
+${cnoise}
+${waves}
 
-			vec4 gx1 = ixy1 / 7.0;
-			vec4 gy1 = fract(floor(gx1) / 7.0) - 0.5;
-			gx1 = fract(gx1);
-			vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
-			vec4 sz1 = step(gz1, vec4(0.0));
-			gx1 -= sz1 * (step(0.0, gx1) - 0.5);
-			gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+void main() {
+	vec4 modelPosition = modelMatrix * vec4(position, 1.0);
 
-			vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
-			vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
-			vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
-			vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
-			vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
-			vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
-			vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
-			vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+	float elevation =
+		bigWaves(modelPosition.xyz, uTime, uBigWavesElevation, uBigWavesFrequency, uBigWavesSpeed) +
+		smallWaves(modelPosition.xyz, uTime, uSmallWavesElevation, uSmallWavesFrequency, uSmallWavesSpeed, uSmallWavesIteration);
 
-			vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
-			g000 *= norm0.x;
-			g010 *= norm0.y;
-			g100 *= norm0.z;
-			g110 *= norm0.w;
-			vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
-			g001 *= norm1.x;
-			g011 *= norm1.y;
-			g101 *= norm1.z;
-			g111 *= norm1.w;
+	modelPosition.y += elevation;
 
-			float n000 = dot(g000, Pf0);
-			float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
-			float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
-			float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
-			float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
-			float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
-			float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
-			float n111 = dot(g111, Pf1);
+	vec4 mvPosition = viewMatrix * modelPosition;
+	gl_Position = projectionMatrix * mvPosition;
 
-			vec3 fade_xyz = fade(Pf0);
-			vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
-			vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
-			float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x);
-			return 2.2 * n_xyz;
-		}
-	`;
+	vElevation = elevation;
+	#include <fog_vertex>
+}
+`
 
-	// create a shader material
-	material = new THREE.ShaderMaterial({
+const GROUND_FRAGMENT = /* glsl */ `
+uniform vec3 uDepthColor;
+uniform vec3 uSurfaceColor;
+uniform float uColorOffset;
+uniform float uColorMultiplier;
+
+varying float vElevation;
+
+#include <fog_pars_fragment>
+${dither}
+
+void main() {
+	float mixStrength = smoothstep(0.0, 1.0, (vElevation + uColorOffset) * uColorMultiplier);
+	vec3 color = mix(uDepthColor, uSurfaceColor, mixStrength);
+
+	gl_FragColor = vec4(color, 1.0);
+	#include <fog_fragment>
+	#include <tonemapping_fragment>
+	#include <colorspace_fragment>
+	gl_FragColor.rgb = applyDither(gl_FragColor.rgb, gl_FragCoord.xy);
+}
+`
+
+function createGroundMaterial() {
+	groundMaterial = new THREE.ShaderMaterial({
 		wireframe: true,
+		fog: true,
 		uniforms: {
-			uTime: {
-				value: 0,
-			},
-
-			uAudioFrequency: {
-				value: 0,
-			},
-
-			uBigWavesElevation: {
-				value: 0,
-			},
-			uBigWavesFrequency: {
-				value: new THREE.Vector2(0, 0),
-			},
-			uBigWavesSpeed: {
-				value: 0.5,
-			},
-
-			uSmallWavesElevation: {
-				value: 0.0125,
-			},
-			uSmallWavesFrequency: {
-				value: 3,
-			},
-			uSmallWavesSpeed: {
-				value: 0.2,
-			},
-			uSmallWavesIteration: {
-				value: 4,
-			},
-
-			uDepthColor: {
-				value: new THREE.Color(debugObject.depthColor),
-			},
-			uSurfaceColor: {
-				value: new THREE.Color(debugObject.surfaceColor),
-			},
-			uColorOffset: {
-				value: 0.08,
-			},
-			uColorMultiplier: {
-				value: 5,
-			},
+			...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+			uTime: { value: 0 },
+			uBigWavesElevation: { value: 0 },
+			uBigWavesFrequency: { value: new THREE.Vector2(0, 0) },
+			uBigWavesSpeed: { value: 0.5 },
+			uSmallWavesElevation: { value: 0.0125 },
+			uSmallWavesFrequency: { value: 3 },
+			uSmallWavesSpeed: { value: 0.2 },
+			uSmallWavesIteration: { value: 4 },
+			// Shared instances: a preset crossfade reaches the grid for free.
+			uDepthColor: { value: LIVE.gridLow },
+			uSurfaceColor: { value: LIVE.gridHigh },
+			uColorOffset: { value: 0.08 },
+			uColorMultiplier: { value: 5 },
 		},
-		vertexShader: `
-		uniform float uTime;
-		uniform float uBigWavesElevation;
-		uniform vec2 uBigWavesFrequency;
-		uniform float uBigWavesSpeed;
+		vertexShader: GROUND_VERTEX,
+		fragmentShader: GROUND_FRAGMENT,
+	})
+}
 
-		uniform float uSmallWavesElevation;
-		uniform float uSmallWavesFrequency;
-		uniform float uSmallWavesSpeed;
-		uniform float uSmallWavesIteration;
+function buildGroundGeometry() {
+	const [width, depth, segX, segY] = tier.ground
+	const geometry = new THREE.PlaneGeometry(width, depth, segX, segY)
+	geometry.rotateX(-Math.PI / 2)
+	return geometry
+}
 
-		uniform float uAudioFrequency;
+function createGround() {
+	createGroundMaterial()
+	ground = new THREE.Mesh(buildGroundGeometry(), groundMaterial)
+	ground.position.set(0, floorY, -2)
+	backdrop.add(ground)
+}
 
-		varying float vElevation;
+/* ------------------------------------------------- contact shadow / pool */
 
-		${glslUtilFunctions}
+const RADIAL_VERTEX = /* glsl */ `
+varying vec2 vUv;
+void main() {
+	vUv = uv;
+	gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`
 
-		${glslFunctions}
+function createContactShadow() {
+	const geometry = new THREE.PlaneGeometry(1, 1, 1, 1)
+	geometry.rotateX(-Math.PI / 2)
 
-
-
-		void main(){
-			vec4 modelPosition = modelMatrix * vec4(position , 1.0);
-
-			float bigWavesElevation = bigWaves(modelPosition.xyz, uTime, uBigWavesElevation, uBigWavesFrequency, uBigWavesSpeed);
-			float smallWavesElevation = smallWaves(modelPosition.xyz, uTime, uSmallWavesElevation, uSmallWavesFrequency, uSmallWavesSpeed, 4);
-
-			float elevationVariable = bigWavesElevation + smallWavesElevation;
-
-			modelPosition.y += elevationVariable;
-
-			modelPosition.y += elevationVariable ;
-
-			vec4 viewPosition = viewMatrix * modelPosition;
-			vec4 projectedPosition = projectionMatrix * viewPosition;
-
-			gl_Position = projectedPosition;
-
-			vElevation = elevationVariable;
-		}
+	const material = new THREE.ShaderMaterial({
+		transparent: true,
+		depthWrite: false,
+		depthTest: true,
+		uniforms: {
+			uColor: { value: LIVE.contactColor },
+			uStrength: { value: LIVE.contactStrength },
+			uPower: { value: 2.4 },
+		},
+		vertexShader: RADIAL_VERTEX,
+		fragmentShader: /* glsl */ `
+			uniform vec3 uColor;
+			uniform float uStrength;
+			uniform float uPower;
+			varying vec2 vUv;
+			void main() {
+				float d = length(vUv - 0.5) * 2.0;
+				float a = pow(1.0 - clamp(d, 0.0, 1.0), uPower);
+				gl_FragColor = vec4(uColor, a * uStrength);
+				#include <colorspace_fragment>
+			}
 		`,
-		fragmentShader: `
-		uniform vec3 uDepthColor;
-		uniform vec3 uSurfaceColor;
-		uniform float uColorOffset;
-		uniform float uColorMultiplier;
+	})
 
+	contactShadow = new THREE.Mesh(geometry, material)
+	// Squashed along Z and nudged away from the key's XZ, because the key light
+	// is high and camera-side.
+	contactShadow.scale.set(1.1, 1, 0.72)
+	contactShadow.renderOrder = 2
+	backdrop.add(contactShadow)
+}
 
-		varying float vElevation;
+function createGroundBounce() {
+	const geometry = new THREE.PlaneGeometry(1, 1, 1, 1)
+	geometry.rotateX(-Math.PI / 2)
 
-		void main(){
-			float mixStrength = (vElevation + uColorOffset) * uColorMultiplier;
-			vec3 color = mix(uDepthColor  , uSurfaceColor , mixStrength);
-			gl_FragColor = vec4(color , 1.0 );
+	const material = new THREE.ShaderMaterial({
+		transparent: true,
+		depthWrite: false,
+		blending: THREE.AdditiveBlending,
+		uniforms: {
+			uColor: { value: LIVE.bounceColor },
+			uStrength: { value: LIVE.bounceStrength },
+		},
+		vertexShader: RADIAL_VERTEX,
+		fragmentShader: /* glsl */ `
+			uniform vec3 uColor;
+			uniform float uStrength;
+			varying vec2 vUv;
+			void main() {
+				float d = length(vUv - 0.5) * 2.0;
+				// Hollow on purpose: a solid additive blob reads as a glowing
+				// puddle, a ring reads as light spilling around an occluder.
+				float ring = smoothstep(1.0, 0.15, d) * smoothstep(0.0, 0.30, d);
+				gl_FragColor = vec4(uColor * ring * uStrength, ring * uStrength);
+				#include <colorspace_fragment>
+			}
+		`,
+	})
+
+	groundBounce = new THREE.Mesh(geometry, material)
+	groundBounce.scale.set(3.4, 1, 2.2)
+	groundBounce.renderOrder = 1
+	backdrop.add(groundBounce)
+}
+
+/**
+ * Put the grid, the contact shadow and the light pool at the character's feet.
+ * The old build hard-coded the grid to y = -1.25 while the character stood at
+ * y = -0.9, so the avatar floated 35cm above its own ground — the single biggest
+ * reason nothing read as grounded.
+ */
+export function setFloorHeight(y) {
+	floorY = y
+	if (ground) ground.position.y = y
+	if (contactShadow) contactShadow.position.set(-0.13, y + 0.004, -0.31)
+	if (groundBounce) groundBounce.position.set(0, y + 0.002, -0.28)
+}
+
+/* --------------------------------------------------------------- resize */
+
+let lastWidth = 0
+let lastHeight = 0
+
+export function resize(force = false) {
+	// documentElement.clientHeight tracks the LAYOUT viewport, which does not
+	// jump as mobile Safari's address bar collapses. innerHeight does.
+	const width = document.documentElement.clientWidth
+	const height = document.documentElement.clientHeight
+	if (!force && width === lastWidth && height === lastHeight) return
+	lastWidth = width
+	lastHeight = height
+
+	// Cap by both a DPR ceiling and an absolute pixel budget: a 4K desktop at
+	// DPR 1 and a phone at DPR 3 are both too many pixels, and a DPR cap alone
+	// only catches one of them.
+	const budgetDpr = Math.sqrt(tier.pixelBudget / (width * height))
+	const dpr = Math.max(1, Math.min(devicePixelRatio, tier.maxDpr, budgetDpr))
+
+	renderer.setPixelRatio(dpr)
+	renderer.setSize(width, height, false)
+	composer?.setPixelRatio(dpr)
+	composer?.setSize(width, height)
+
+	camera.aspect = width / height
+	camera.updateProjectionMatrix()
+}
+
+/* ------------------------------------------------------------- composer */
+
+function buildComposer() {
+	teardownComposer()
+	if (!tier.bloom) return
+
+	renderTarget = new THREE.WebGLRenderTarget(1, 1, {
+		type: THREE.HalfFloatType, // clamping at 1.0 would make a >1.0 threshold extract nothing
+		samples: 4, // antialias:true only covers the default framebuffer
+		colorSpace: THREE.LinearSRGBColorSpace,
+	})
+
+	composer = new EffectComposer(renderer, renderTarget)
+	composer.addPass(new RenderPass(scene, camera))
+	bloomPass = new UnrealBloomPass(
+		new THREE.Vector2(window.innerWidth, window.innerHeight),
+		tier.bloom.strength,
+		tier.bloom.radius,
+		tier.bloom.threshold,
+	)
+	composer.addPass(bloomPass)
+	// Must be last: it owns tone mapping and the sRGB conversion.
+	composer.addPass(new OutputPass())
+	resize(true)
+}
+
+function teardownComposer() {
+	bloomPass?.dispose()
+	renderTarget?.dispose()
+	composer = null
+	bloomPass = null
+	renderTarget = null
+}
+
+/* ----------------------------------------------------------------- tier */
+
+let onTierChange = null
+
+export function setTierListener(fn) {
+	onTierChange = fn
+}
+
+export function applyTier(name) {
+	const next = TIERS[name]
+	if (!next || next === tier) return name
+	tier = next
+
+	renderer.shadowMap.enabled = tier.shadows
+	if (tier.shadows) configureShadow(tier.shadowMapSize)
+	key.castShadow = tier.shadows
+
+	if (ground) {
+		ground.geometry.dispose()
+		ground.geometry = buildGroundGeometry()
+	}
+
+	if (tier.ibl === "hemi" && !scene.environment) useHemisphereLight()
+
+	buildComposer()
+	resize(true)
+	onTierChange?.(tier, name)
+	return name
+}
+
+export function currentTier() {
+	return tier
+}
+
+/* --------------------------------------------------------------- frame */
+
+export function render() {
+	if (composer) composer.render()
+	else renderer.render(scene, camera)
+}
+
+export function updateWorld(elapsed) {
+	if (groundMaterial) groundMaterial.uniforms.uTime.value = elapsed
+}
+
+/** Audio-reactive swell on the wireframe grid. */
+export function setAudioLevel(level) {
+	if (groundMaterial) {
+		groundMaterial.uniforms.uSmallWavesElevation.value = 0.0125 + level * 0.075
+	}
+}
+
+/* --------------------------------------------------------------- setup */
+
+export function setupWorld({ canvas, tier: tierName = "medium" }) {
+	tier = TIERS[tierName] ?? TIERS.medium
+
+	createRenderer(canvas)
+	createCamera()
+
+	scene = new THREE.Scene()
+	backdrop = new THREE.Group()
+	scene.add(backdrop)
+
+	// One Color instance shared by the fog, the sky's horizon band and the
+	// mountain blend, so the backdrop cannot come apart into separate planes.
+	scene.fog = new THREE.Fog(LIVE.horizon, LIVE.fogNear, LIVE.fogFar)
+	scene.fog.color = LIVE.horizon
+
+	createLights()
+	createGround()
+	createContactShadow()
+	createGroundBounce()
+	setFloorHeight(floorY)
+
+	renderer.shadowMap.enabled = tier.shadows
+	key.castShadow = tier.shadows
+	if (tier.ibl === "hemi") useHemisphereLight()
+
+	buildComposer()
+	resize(true)
+
+	// Scalars have to be pushed; colours are shared instances and update themselves.
+	onPreset((live) => {
+		renderer.toneMappingExposure = live.exposure
+		renderer.setClearColor(live.skyTop, 1)
+
+		key.intensity = live.keyIntensity
+		fill.intensity = live.fillIntensity
+		rim.intensity = live.rimIntensity
+		rim.position.copy(live.sunDir).multiplyScalar(6)
+
+		scene.fog.near = live.fogNear
+		scene.fog.far = live.fogFar
+		scene.environmentIntensity = live.envIntensity
+		scene.environmentRotation.set(0, live.envRotY, 0)
+
+		if (contactShadow) {
+			contactShadow.material.uniforms.uStrength.value = live.contactStrength
 		}
-  `,
-	});
+		if (groundBounce) {
+			groundBounce.material.uniforms.uStrength.value = live.bounceStrength
+		}
+	})
 
-	const mesh = new THREE.Mesh(geometry, material);
-	mesh.position.set(0, 0, -2);
-	scene.add(mesh);
+	let resizeFrame = 0
+	window.addEventListener("resize", () => {
+		cancelAnimationFrame(resizeFrame)
+		resizeFrame = requestAnimationFrame(() => resize())
+	})
+	window.addEventListener("orientationchange", () => setTimeout(() => resize(true), 300))
+
+	return { renderer, scene, camera }
 }
-
-function onWindowResize() {
-	const aspect = window.innerWidth / window.innerHeight;
-
-	currentCamera.aspect = aspect;
-	currentCamera.updateProjectionMatrix();
-
-	renderer.setSize(window.innerWidth, window.innerHeight);
-
-	// render();
-}
-window.addEventListener("resize", onWindowResize);
-function setupWorld() {
-	createRenderer();
-	createCamera();
-	createSceneAndLights();
-	loadEnvMap();
-	addGroundMesh();
-}
-
-export {
-	setupWorld,
-	cameraPersp,
-	currentCamera,
-	material,
-	scene,
-	renderer,
-	envMap,
-};

@@ -1,389 +1,1723 @@
-* {
+/*
+ * PLATE — editorial lookbook chrome for the Avatar Customizer.
+ *
+ * The premise: this is not a panel of controls sitting on top of a 3D scene, it
+ * is the right-hand margin of a spread whose image is the live avatar. So there
+ * is no card, no border, no rounded container and no shadow anywhere on the
+ * panel. Its only background is a gradient scrim with the backdrop-filter masked
+ * to the same ramp, which is what leaves the interface with no detectable edge.
+ *
+ * The accent cannot be blue: the sky runs to #5c92ed and the lake to #9bd8ff, so
+ * the old #007bff sat inside the scene's own hue family. Vermilion is the one
+ * hue the scene never produces, and it is spent on exactly three things —
+ * capture, error, and the live progress mark.
+ */
+
+:root {
+	/* ink: one hue family, warm bone on cool near-black */
+	--ink: 244, 241, 235;
+	--void: 11, 12, 13;
+
+	--s-1: rgba(var(--void), 0.72);
+	--s-2: rgba(var(--void), 0.8);
+	--s-3: rgba(18, 20, 21, 0.92);
+	--s-4: #0b0c0d;
+	--s-hover: rgba(var(--ink), 0.06);
+	--s-press: rgba(var(--ink), 0.11);
+
+	--scrim-h: linear-gradient(
+		to right,
+		rgba(var(--void), 0) 0px,
+		rgba(var(--void), 0.34) 64px,
+		rgba(var(--void), 0.72) 150px,
+		rgba(var(--void), 0.86) 100%
+	);
+	--scrim-v: linear-gradient(
+		to top,
+		rgba(var(--void), 0.9) 0px,
+		rgba(var(--void), 0.8) 96px,
+		rgba(var(--void), 0.34) 210px,
+		rgba(var(--void), 0) 100%
+	);
+	--blur: blur(16px) saturate(0.86);
+
+	/* text alphas are set by measurement against the brightest pixel the scene
+	   produces (lake surface #9bd8ff) composited through the scrim */
+	--t-1: rgb(var(--ink));
+	--t-2: rgba(var(--ink), 0.8);
+	--t-3: rgba(var(--ink), 0.64);
+	--t-4: rgba(var(--ink), 0.3);
+	--t-inv: #0b0c0d;
+
+	/* exactly four rule weights */
+	--line-1: rgba(var(--ink), 0.12);
+	--line-2: rgba(var(--ink), 0.24);
+	--line-3: rgba(var(--ink), 0.6);
+	--line-mark: rgba(var(--ink), 0.3);
+
+	--sig: #d9563c;
+	--sig-hi: #ee6e52;
+	--sig-dim: rgba(217, 86, 60, 0.16);
+	--pos: #b7c7a8;
+
+	/* two-tone so it survives both the dark ocean and the bright horizon */
+	--focus-ring: 0 0 0 2px #0b0c0d, 0 0 0 4px #f4f1eb;
+
+	--r-0: 0px;
+	--r-1: 2px;
+
+	--f-display: "Instrument Serif", "Times New Roman", serif;
+	--f-ui: "Raleway", "Helvetica Neue", Arial, sans-serif;
+	--f-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+	--fs-display: 2.5rem;
+	--fs-title: 1.375rem;
+	--fs-lead: 1rem;
+	--fs-body: 0.875rem;
+	--fs-label: 0.75rem;
+	--fs-meta: 0.6875rem;
+	--fs-micro: 0.625rem;
+
+	--e-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+	--e-inout: cubic-bezier(0.65, 0, 0.35, 1);
+	--e-entrance: cubic-bezier(0.16, 1, 0.3, 1);
+	--d-0: 90ms;
+	--d-1: 130ms;
+	--d-2: 220ms;
+	--d-3: 420ms;
+	--d-4: 900ms;
+
+	/* written once per frame from audio.getLevel() */
+	--level: 0;
+}
+
+/* Without backdrop-filter the scrim carries no blur, so alpha has to rise or
+   text fails contrast over the dawn horizon. */
+@supports not (
+	(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+	:root {
+		--s-1: rgba(var(--void), 0.86);
+		--s-2: rgba(var(--void), 0.9);
+		--scrim-h: linear-gradient(
+			to right,
+			rgba(var(--void), 0) 0px,
+			rgba(var(--void), 0.48) 64px,
+			rgba(var(--void), 0.86) 150px,
+			rgba(var(--void), 0.94) 100%
+		);
+		--scrim-v: linear-gradient(
+			to top,
+			rgba(var(--void), 0.94) 0px,
+			rgba(var(--void), 0.88) 96px,
+			rgba(var(--void), 0.48) 210px,
+			rgba(var(--void), 0) 100%
+		);
+	}
+}
+
+/* ------------------------------------------------------------------ reset */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
 	margin: 0;
 	padding: 0;
-	font-family: "Raleway", sans-serif;
+}
+
+html {
+	font-size: 16px;
 }
 
 html,
 body {
+	height: 100%;
 	overflow: hidden;
-}
-
-.webgl {
-	position: fixed;
-	top: 0;
-	left: 0;
-	outline: none;
-}
-
-.unselectable {
-	-webkit-touch-callout: none;
-	-webkit-user-select: none;
-	-khtml-user-select: none;
-	-moz-user-select: none;
-	-ms-user-select: none;
-	user-select: none;
-}
-
-.avatar-customizer-ui {
-	position: fixed;
-	top: 0;
-	right: 0;
-
-	height: 100%;
-	min-width: 50%;
-	max-width: 60%;
-
-	background-color: rgba(0, 0, 0, 0);
-	color: white;
-
-	display: flex;
-	flex-direction: row;
-	justify-content: center;
-	align-items: center;
-	gap: 20px;
-
-	z-index: 100;
-
-	font-family: "Aboreto", cursive;
-	text-align: center;
-
-	/* overflow-x: hidden; */
-	/* overflow-y: scroll; */
-}
-
-.avatar-customizer-ui .title {
-	width: 100%;
-	font-size: 24px;
-	/* position: fixed; */
-	/* top: 0; */
-}
-
-.avatar-customizer-ui .sections {
-	width: 100%;
-	/* height: 10%; */
-	display: flex;
-	flex-direction: column;
-	gap: 20px;
-	justify-content: space-between;
-	align-items: center;
-
-	overflow-y: scroll;
-	/* overflow-x: hidden; */
-}
-
-.avatar-customizer-ui .sections .items-container {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-	/* overflow: auto; */
-}
-
-.avatar-customizer-ui .sections .items-container .item-title {
-	font-size: 18px;
-}
-
-.avatar-customizer-ui .sections .items-container .items-list {
-	width: 100%;
-	display: flex;
-	gap: 20px;
-	/* overflow-x: scroll; */
-}
-
-.avatar-customizer-ui .sections .items-container .items-list .item {
-	height: 150px;
-	/* border: #0f0 solid 1px; */
-
-	padding: 5px;
-
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-}
-
-.avatar-customizer-ui .sections .items-container .items-list .item.active {
-	/* height: 150px; */
-	border: #0f0 solid 1px;
-
-	/* padding: 5px;
-
-	display: flex;
-	flex-direction: column;
-	justify-content: center; */
-}
-
-.avatar-customizer-ui .sections .items-container .items-list .item .item-image {
-	height: 100px;
-	width: 100px;
-	background-color: rgba(0, 255, 0, 0.25);
-}
-
-.avatar-customizer-ui
-	.sections
-	.items-container
-	.items-list
-	.item.disabled
-	.item-image {
-	height: 100px;
-	width: 100px;
-	background-color: rgba(100, 100, 100, 0.25);
-}
-.avatar-customizer-ui
-	.sections
-	.items-container
-	.items-list
-	.item
-	.item-description {
-	font-size: 14px;
-}
-
-.avatar-customizer-ui
-	.sections
-	.items-container
-	.items-list
-	.item-interaction-button {
-	background-color: transparent;
-	color: white;
-	border: none;
-	cursor: crosshair;
-}
-
-.avatar-customizer-ui
-	.sections
-	.items-container
-	.items-list
-	.item-interaction-button
-	span {
-	font-size: 32px;
-}
-
-.buttons-container {
-	width: 100%;
-	display: flex;
-	justify-content: start;
-	z-index: 1000;
-	position: fixed;
-	bottom: 0;
-	/* left: 280px; */
-	gap: 10px;
-}
-
-@media (max-width: 767px) {
-	/* Styles for small screens */
-
-	.buttons-container {
-		left: 0;
-	}
-}
-#winamp-container {
-	pointer-events: all;
-	z-index: 5000;
-	position: absolute;
-	top: 0 !important;
-	left: 0;
-
-	/* height: 400px; */
-	width: 275px;
-
-	/* border: 2px solid #009851; */
-}
-
-.buttons-container button {
-	background-color: transparent;
-	color: white;
-	/* font-weight: 700; */
-	border: 1px solid #007bff;
-	/* border-radius: 100%; */
-}
-
-.avatar-customizer-ui .buttons-container .customization-done {
-	border: 1px solid antiquewhite;
-	border-radius: 5px;
-	background-color: transparent;
-	padding: 10px;
-	margin: 5px;
-
-	/* font-size: 28px; */
-	/* width: 50%; */
-
-	color: grey;
-	text-shadow: -1px 1px blanchedalmond;
-
-	cursor: crosshair;
-}
-
-#ui {
-	width: 100%;
-	/* height: 10%; */
-	display: flex;
-	flex-direction: row;
-	gap: 10px;
-	justify-content: start;
-	align-items: center;
-
-	/* overflow-y: scroll; */
-	/* overflow-x: hidden; */
-}
-
-.sections {
-	display: flex;
-	/* flex-direction: column; */
-	justify-content: center;
-	/* flex-wrap: wrap; */
-	height: 80vh;
-	overflow-y: scroll;
-	overflow-x: hidden;
-}
-
-.section {
-	margin: 0 1rem 1rem;
-	display: flex;
-	flex-direction: column;
-	/* align-items: flex-start; */
-	/* justify-content: flex-start; */
-}
-
-.buttons-items {
-	display: flex;
-	justify-content: flex-start;
-}
-
-.section > h3 {
-	margin-bottom: 1rem;
-}
-
-.items {
-	display: flex;
-	/* flex-direction: column; */
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: center;
-	gap: 10px;
-}
-
-.items > img {
-	margin-bottom: 1rem;
-	height: 120px;
-	width: 80x;
-	cursor: pointer;
-}
-
-.item-navigation-button {
-	background-color: transparent;
-	color: white;
-	border: none;
-}
-
-.items img.active {
-	border: 2px solid #007bff; /* Adjust the style as needed */
-}
-
-.range-container {
-	display: flex;
-	align-items: center;
-}
-
-input[type="range"] {
-	/* margin-top: 10px; */
-	-webkit-appearance: none;
-	/* background-color: #0f0; */
-	width: 75px;
-	height: 1px;
-	outline: none !important;
-	appearance: none;
-	border: none;
-	/* border-radius: 30px; */
-}
-
-input[type="range"]::-webkit-slider-thumb {
-	-webkit-appearance: none;
-	appearance: none;
-	width: 15px;
-	height: 25px;
-	background: #007bff;
-	cursor: crosshair;
-	border-radius: 0px;
-	outline: none;
-}
-input[type="range"]::-moz-range-thumb {
-	width: 18px;
-	height: 18px;
-	background: #f1f9f4;
-	cursor: pointer;
-	border-radius: 50%;
-	border: none;
-	outline: none;
-}
-input[type="range"]::-moz-range-progress {
-	background-color: #fff;
-	height: 100%;
-	border-radius: 30px;
-	border: none;
-}
-
-.clothing-names {
-	position: fixed;
-	bottom: 10%;
-	right: 0;
-	height: 30%;
-	width: 40%;
-	border: 1px solid white;
-	z-index: 1000;
-	display: none;
-}
-
-.toggle-collapse {
-	height: 80px;
-	width: 80px;
-	background-color: transparent;
-	border: none;
-	color: white;
-	font-size: 36px;
-	position: fixed;
-	top: 50%;
-	right: 0;
-	z-index: 4000;
-
-	animation: heartbeat 1s infinite;
-}
-@keyframes heartbeat {
-	0% {
-		transform: scale(1.2);
-	}
-	14% {
-		transform: scale(1.8);
-	}
-	28% {
-		transform: scale(1.2);
-	}
-	42% {
-		transform: scale(1.8);
-	}
-	100% {
-		transform: scale(1.2);
-	}
-}
-
-.toggle-collapse span {
-	/* position: absolute;
-	right: 0;
-	top: 0; */
-	font-size: 48px;
-	z-index: 1;
-	/* background-color: transparent; */
-	color: white;
-}
-
-.ui,
-.avatar-customizer-ui {
-	transition: transform 0.3s ease;
-}
-
-.ui.collapsed,
-.avatar-customizer-ui.collapsed {
-	transform: translateX(200%);
+	overscroll-behavior: none;
+	background: var(--s-4);
+	color: var(--t-1);
+	font-family: var(--f-ui);
+	font-weight: 300;
+	-webkit-font-smoothing: antialiased;
 }
 
 button {
+	font: inherit;
+	color: inherit;
+	background: none;
+	border: 0;
 	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+}
+
+img {
+	max-width: 100%;
+}
+
+/* Any author `display` beats the UA rule behind the `hidden` attribute, which is
+   how the loading screen's Retry button ended up visible on a successful load. */
+[hidden] {
+	display: none !important;
+}
+
+.material-symbols-outlined {
+	font-variation-settings: "FILL" 0, "wght" 200, "GRAD" 0, "opsz" 24;
+	font-size: 20px;
+	line-height: 1;
+	user-select: none;
+}
+
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+:where(a[href], button, input, [tabindex]):focus-visible {
+	outline: none;
+	box-shadow: var(--focus-ring);
+	border-radius: var(--r-1);
+}
+
+/* ---------------------------------------------------------------- canvas */
+
+#screenshotable {
+	position: fixed;
+	inset: 0;
+	z-index: 0;
+}
+
+.webgl {
+	position: absolute;
+	inset: 0;
+	display: block;
+	width: 100%;
+	height: 100%;
+	outline: none;
+	cursor: grab;
+	/* Scoped to the canvas, so page pinch-zoom still works everywhere else and
+	   removing user-scalable=no does not reintroduce the gesture fight. */
+	touch-action: none;
+	-webkit-user-select: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+}
+
+.webgl:active {
+	cursor: grabbing;
+}
+
+.webgl:focus-visible {
+	outline: 2px solid var(--line-3);
+	outline-offset: -2px;
+	box-shadow: none;
+}
+
+/* Trim marks: a printing convention that also states, honestly, exactly what
+   the capture will contain. */
+#screenshotable::before,
+#screenshotable::after {
+	content: "";
+	position: absolute;
+	width: 14px;
+	height: 14px;
+	pointer-events: none;
+	/* The canvas is a later sibling in paint order, so without this the
+	   top-left mark renders underneath it and simply never appears. */
+	z-index: 1;
+	border-color: var(--line-mark);
+	border-style: solid;
+	transition: border-color 260ms var(--e-out);
+}
+
+#screenshotable::before {
+	top: 20px;
+	left: 20px;
+	border-width: 1px 0 0 1px;
+}
+
+#screenshotable::after {
+	bottom: 20px;
+	right: 20px;
+	border-width: 0 1px 1px 0;
+}
+
+/* The shutter. No white flash — just the crop marks acknowledging the exposure. */
+body.is-capturing #screenshotable::before,
+body.is-capturing #screenshotable::after {
+	border-color: var(--t-1);
+}
+
+body.is-capturing .panel,
+body.is-capturing .console,
+body.is-capturing .panel__tab,
+body.is-capturing .toasts {
+	visibility: hidden;
+}
+
+/* ------------------------------------------------------- now-wearing plate */
+
+.plate-caption {
+	position: absolute;
+	left: 50%;
+	bottom: 92px;
+	z-index: 1;
+	transform: translateX(-50%);
+	max-width: 460px;
+	text-align: center;
+	pointer-events: none;
+	font: 400 var(--fs-lead) / 1.3 var(--f-display);
+	font-style: italic;
+	color: var(--t-1);
+	text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+	transition:
+		opacity 300ms var(--e-entrance),
+		transform var(--d-3) var(--e-inout);
+}
+
+.plate-caption::before {
+	content: "Bilal";
+	display: block;
+	margin-bottom: 6px;
+	font: 400 var(--fs-micro) / 1 var(--f-ui);
+	font-style: normal;
+	letter-spacing: 0.22em;
+	text-transform: uppercase;
+	color: var(--t-2);
+}
+
+.plate-caption--swap {
+	opacity: 0;
+}
+
+/* ----------------------------------------------------------------- panel */
+
+.panel {
+	position: fixed;
+	inset: 0 0 0 auto;
+	width: 384px;
+	z-index: 100;
+	display: grid;
+	grid-template-rows: 96px 1fr;
+	background: none;
+	border: none;
+	box-shadow: none;
+	transition: transform var(--d-3) var(--e-inout);
+}
+
+.panel::before {
+	content: "";
+	position: absolute;
+	inset: 0 0 0 -150px;
+	background: var(--scrim-h);
+	backdrop-filter: var(--blur);
+	-webkit-backdrop-filter: var(--blur);
+	mask-image: linear-gradient(to right, transparent 0, #000 150px);
+	-webkit-mask-image: linear-gradient(to right, transparent 0, #000 150px);
+	pointer-events: none;
+	z-index: -1;
+}
+
+.panel.collapsed {
+	transform: translateX(100%);
+}
+
+.panel__head {
+	padding: 40px 32px 0 40px;
+	display: grid;
+	grid-template-columns: 1fr auto;
+	align-items: baseline;
+	position: relative;
+}
+
+.panel__head::after {
+	content: "";
+	position: absolute;
+	left: 40px;
+	right: 32px;
+	bottom: 0;
+	height: 1px;
+	background: var(--line-1);
+}
+
+.panel__mark {
+	font: 400 var(--fs-display) / 1 var(--f-display);
+	letter-spacing: -0.015em;
+	color: var(--t-1);
+}
+
+.text-button {
+	font: 400 var(--fs-label) / 1 var(--f-ui);
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--t-2);
+	transition: color var(--d-1) linear;
+}
+
+.text-button:hover {
+	color: var(--t-1);
+}
+
+/* The collapsed recall tab. A labelled tab reads as a table of contents; the
+   pulsing chevron it replaces read as an alarm. */
+.panel__tab {
+	position: fixed;
+	right: max(0px, env(safe-area-inset-right));
+	top: 50%;
+	transform: translateY(-50%);
+	width: 44px;
+	height: 132px;
+	display: grid;
+	place-items: center;
+	background: var(--s-2);
+	backdrop-filter: var(--blur);
+	-webkit-backdrop-filter: var(--blur);
+	border-left: 1px solid var(--line-1);
+	border-radius: 0;
+	writing-mode: vertical-rl;
+	letter-spacing: 0.22em;
+	text-transform: uppercase;
+	font-size: var(--fs-label);
+	font-weight: 400;
+	color: var(--t-2);
+	z-index: 101;
+	opacity: 0;
+	pointer-events: none;
+	transition:
+		opacity var(--d-2) var(--e-out),
+		transform var(--d-2) var(--e-out);
+}
+
+body:not(.panel-open) .panel__tab {
+	opacity: 1;
+	pointer-events: auto;
+	transition-delay: 180ms;
+}
+
+.panel__tab:hover {
+	color: var(--t-1);
+}
+
+/* --------------------------------------------------------------- sections */
+
+.sections {
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding: 28px 32px 32px 40px;
+	display: flex;
+	flex-direction: column;
+	gap: 32px;
+	scrollbar-width: none;
+	overscroll-behavior: contain;
+	touch-action: pan-y;
+	mask-image: linear-gradient(
+		to bottom,
+		transparent 0,
+		#000 24px,
+		#000 calc(100% - 40px),
+		transparent 100%
+	);
+	-webkit-mask-image: linear-gradient(
+		to bottom,
+		transparent 0,
+		#000 24px,
+		#000 calc(100% - 40px),
+		transparent 100%
+	);
+}
+
+.sections::-webkit-scrollbar {
+	display: none;
+}
+
+.section {
+	display: grid;
+	grid-template-rows: 20px 111px;
+	row-gap: 12px;
+}
+
+.section__head {
+	display: grid;
+	grid-template-columns: 1fr auto auto auto;
+	align-items: center;
+	column-gap: 10px;
+}
+
+.section__label {
+	font: 400 var(--fs-label) / 1 var(--f-ui);
+	letter-spacing: 0.22em;
+	text-transform: uppercase;
+	color: var(--t-2);
+	transition: color var(--d-1) linear;
+}
+
+.section:hover .section__label,
+.section:focus-within .section__label {
+	color: var(--t-1);
+}
+
+.section__count {
+	font: 400 var(--fs-meta) / 1 var(--f-mono);
+	letter-spacing: 0.06em;
+	color: var(--t-3);
+	font-variant-numeric: tabular-nums;
+}
+
+.section__empty {
+	display: grid;
+	place-items: center;
+	width: 96px;
+	height: 111px;
+	border: 1px dashed var(--line-1);
+	font: 400 var(--fs-micro) / 1 var(--f-mono);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--t-4);
+}
+
+.items {
+	display: grid;
+	grid-auto-flow: column;
+	grid-auto-columns: 96px;
+	gap: 12px;
+	overflow-x: auto;
+	scroll-snap-type: x mandatory;
+	scrollbar-width: none;
+	overscroll-behavior-x: contain;
+	touch-action: pan-x;
+	align-items: start;
+}
+
+.items::-webkit-scrollbar {
+	display: none;
+}
+
+/* ------------------------------------------------------------------ chip */
+
+.chip {
+	position: relative;
+	width: 96px;
+	aspect-ratio: 276 / 320;
+	padding: 0;
+	border: none;
+	border-radius: var(--r-1);
+	background: var(--s-2);
+	overflow: hidden;
+	scroll-snap-align: start;
+	box-shadow: inset 0 0 0 1px var(--line-1);
+	transition:
+		box-shadow var(--d-2) var(--e-out),
+		opacity var(--d-1) linear;
+	-webkit-touch-callout: none;
+	user-select: none;
+}
+
+.chip img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	filter: saturate(0.94) contrast(1.03);
+	pointer-events: none;
+}
+
+.chip__no {
+	position: absolute;
+	left: 6px;
+	bottom: 5px;
+	padding: 2px 3px;
+	font: 400 var(--fs-micro) / 1 var(--f-mono);
+	letter-spacing: 0.08em;
+	color: var(--t-3);
+	transition:
+		color var(--d-1) linear,
+		background-color var(--d-1) linear;
+}
+
+.chip:hover {
+	box-shadow: inset 0 0 0 1px var(--line-2);
+}
+
+.chip:hover .chip__no {
+	color: var(--t-2);
+}
+
+.chip:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 1px var(--line-2), var(--focus-ring);
+}
+
+.chip:active {
+	opacity: 0.82;
+	transition-duration: var(--d-0);
+}
+
+.chip[aria-selected="true"] {
+	box-shadow: inset 0 0 0 1px var(--line-3);
+}
+
+.chip[aria-selected="true"]::after {
+	content: "";
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	width: 3px;
+	height: 3px;
+	background: var(--t-1);
+}
+
+.chip[aria-selected="true"] .chip__no {
+	background: var(--t-1);
+	color: var(--t-inv);
+}
+
+.chip[aria-selected="true"]:hover {
+	opacity: 0.94;
+}
+
+/* Empty plate when a thumbnail 404s — never a broken-image glyph. */
+.chip--noimage .chip__no {
+	position: static;
+	display: grid;
+	place-items: center;
+	height: 100%;
+	font-size: var(--fs-label);
+	color: var(--t-4);
+	background: none;
+}
+
+.chip--none {
+	background: transparent;
+	box-shadow: none;
+	border: 1px dashed var(--line-1);
+	display: grid;
+	place-items: center;
+}
+
+.chip--none::before {
+	content: "—";
+	font: 400 var(--fs-label) / 1 var(--f-mono);
+	color: var(--t-3);
+}
+
+.chip--none[aria-selected="true"] {
+	border-color: transparent;
+	box-shadow: inset 0 0 0 1px var(--line-3);
+}
+
+/* ---------------------------------------------------------------- arrows */
+
+.arrow {
+	position: relative;
+	width: 24px;
+	height: 24px;
+	display: grid;
+	place-items: center;
+	color: var(--t-4);
+	transition:
+		color var(--d-1) linear,
+		background-color var(--d-1) linear;
+}
+
+.arrow::before {
+	/* transparent overlay lifting the hit area past the visual box */
+	content: "";
+	position: absolute;
+	inset: -4px;
+}
+
+.arrow .material-symbols-outlined {
+	font-size: 18px;
+}
+
+.section:hover .arrow,
+.section:focus-within .arrow {
+	color: var(--t-2);
+}
+
+.arrow:hover {
+	color: var(--t-1);
+	background: var(--s-hover);
+}
+
+.arrow:active {
+	background: var(--s-press);
+	transition-duration: var(--d-0);
+}
+
+.arrow:disabled {
+	color: var(--t-4);
+	opacity: 0.4;
+	pointer-events: none;
+}
+
+/* ----------------------------------------------------------------- looks */
+
+.looks {
+	display: grid;
+	row-gap: 12px;
+}
+
+.looks__list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.look {
+	height: 28px;
+	padding: 0 13px;
+	font: 400 var(--fs-meta) / 1 var(--f-ui);
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--t-3);
+	box-shadow: inset 0 0 0 1px var(--line-1);
+	transition:
+		color var(--d-1) linear,
+		box-shadow var(--d-1) linear,
+		background-color var(--d-1) linear;
+}
+
+.look:hover {
+	color: var(--t-1);
+	background: var(--s-hover);
+}
+
+.look[aria-pressed="true"] {
+	color: var(--t-1);
+	box-shadow: inset 0 0 0 1px var(--line-3);
+}
+
+.look--shuffle {
+	color: var(--t-2);
+}
+
+/* ------------------------------------------------------- segmented control */
+
+.field {
+	display: grid;
+	row-gap: 8px;
+}
+
+.seg {
+	display: inline-flex;
+	height: 28px;
+	width: fit-content;
+	background: var(--s-2);
+	border-radius: var(--r-0);
+	box-shadow: inset 0 0 0 1px var(--line-1);
+}
+
+.seg button {
+	height: 28px;
+	padding: 0 13px;
+	border: none;
+	background: transparent;
+	font: 400 var(--fs-meta) / 1 var(--f-ui);
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--t-3);
+	transition:
+		color var(--d-1) linear,
+		background-color var(--d-1) linear;
+}
+
+.seg button + button {
+	box-shadow: inset 1px 0 0 var(--line-1);
+}
+
+.seg button:hover {
+	color: var(--t-1);
+	background: var(--s-hover);
+}
+
+.seg button:focus-visible {
+	z-index: 1;
+}
+
+/* An underscore, not a pill. The moving pill is the most templated component
+   on the web; an underscore is a printed page. */
+.seg button[aria-checked="true"] {
+	color: var(--t-1);
+	box-shadow: inset 0 -1px 0 0 var(--line-3);
+}
+
+.seg button[aria-checked="true"] + button {
+	box-shadow: inset 1px 0 0 var(--line-1);
+}
+
+/* On wide screens the wrapper dissolves so its two children take their own
+   places in the scroller: looks at the top, light/quality/export at the bottom.
+   On phone it becomes a real box and gets its own tab. */
+.extras {
+	display: contents;
+}
+
+.looks {
+	order: -1;
+}
+
+.panel__footer {
+	order: 1;
+}
+
+.panel__footer {
+	display: grid;
+	row-gap: 20px;
+	padding-top: 24px;
+	border-top: 1px solid var(--line-1);
+}
+
+/* Declared after `.seg` on purpose: the tab strip carries both classes, and an
+   earlier `display: none` would lose to `.seg { display: inline-flex }` — which
+   also handed the panel grid a third row and pushed the scroller off the bottom. */
+.panel__tabs {
+	display: none;
+}
+
+.seg__badge {
+	margin-left: 4px;
+	font: 400 var(--fs-micro) / 1 var(--f-mono);
+	color: var(--t-3);
+	vertical-align: super;
+}
+
+/* --------------------------------------------------------------- console */
+
+.console {
+	position: fixed;
+	left: max(40px, env(safe-area-inset-left));
+	bottom: max(36px, env(safe-area-inset-bottom));
+	height: 40px;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	z-index: 90;
+}
+
+.console button {
+	width: 40px;
+	height: 40px;
+	display: grid;
+	place-items: center;
+	position: relative;
+	background: transparent;
+	border: none;
+	color: var(--t-2);
+	border-radius: var(--r-0);
+	transition:
+		color var(--d-1) linear,
+		background-color var(--d-1) linear;
+}
+
+.console button:hover {
+	color: var(--t-1);
+	background: var(--s-hover);
+}
+
+.console button:active {
+	background: var(--s-press);
+}
+
+.console button[aria-pressed="true"] {
+	color: var(--t-1);
+}
+
+.console button[aria-pressed="true"]::after {
+	content: "";
+	position: absolute;
+	bottom: 3px;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 12px;
+	height: 1px;
+	background: var(--line-3);
+}
+
+.console__divider {
+	width: 1px;
+	height: 20px;
+	margin: 0 18px 0 20px;
+	background: var(--line-1);
+}
+
+.console__slider {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+}
+
+.console--muted #volume {
+	opacity: 0.4;
+}
+
+/* Needs the extra class to outrank `.console button`, which is more specific. */
+.console .console__recall {
+	display: none;
+}
+
+/* VU meter: the analyser already moves the water, and was otherwise invisible. */
+.console::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: -3px;
+	height: 2px;
+	background: linear-gradient(
+		to right,
+		var(--line-3) 0 calc(var(--level) * 100%),
+		var(--line-1) calc(var(--level) * 100%) 100%
+	);
+	transition: none;
+	pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- slider */
+
+#volume {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 76px;
+	height: 40px;
+	background: transparent;
+	outline: none;
+	margin: 0;
+	cursor: pointer;
+}
+
+#volume::-webkit-slider-runnable-track {
+	height: 2px;
+	border-radius: 0;
+	background: linear-gradient(
+		to right,
+		var(--t-1) 0 var(--pct, 30%),
+		var(--line-1) var(--pct, 30%) 100%
+	);
+	transition: height var(--d-1) var(--e-out);
+}
+
+#volume::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	width: 2px;
+	height: 14px;
+	margin-top: -6px;
+	background: var(--t-1);
+	border: none;
+	border-radius: 0;
+	box-shadow: 0 0 0 6px transparent;
+}
+
+#volume::-moz-range-track {
+	height: 2px;
+	background: var(--line-1);
+	border: none;
+}
+
+#volume::-moz-range-progress {
+	height: 2px;
+	background: var(--t-1);
+	border: none;
+}
+
+#volume::-moz-range-thumb {
+	width: 2px;
+	height: 14px;
+	background: var(--t-1);
+	border: none;
+	border-radius: 0;
+}
+
+#volume:hover::-webkit-slider-runnable-track {
+	height: 4px;
+}
+
+#volume:hover::-webkit-slider-thumb {
+	margin-top: -5px;
+}
+
+#volume:focus-visible {
+	box-shadow: none;
+}
+
+#volume:focus-visible::-webkit-slider-thumb {
+	box-shadow: var(--focus-ring);
+}
+
+/* --------------------------------------------------------------- capture */
+
+.capture {
+	height: 40px !important;
+	width: auto !important;
+	padding: 0 20px;
+	gap: 9px;
+	display: inline-flex !important;
+	align-items: center;
+	background: var(--sig) !important;
+	color: var(--t-inv) !important;
+	border: none;
+	border-radius: var(--r-1);
+	font: 500 var(--fs-label) / 1 var(--f-ui);
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	transition:
+		background-color var(--d-1) linear,
+		transform var(--d-1) var(--e-out);
+}
+
+.capture .material-symbols-outlined {
+	font-size: 18px;
+}
+
+.capture:hover {
+	background: var(--sig-hi) !important;
+}
+
+.capture:active {
+	transform: scale(0.985);
+	transition-duration: var(--d-0);
+}
+
+body.is-capturing .capture {
+	pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- toasts */
+
+.toasts {
+	position: fixed;
+	left: max(40px, env(safe-area-inset-left));
+	bottom: 92px;
+	z-index: 9000;
+	display: flex;
+	flex-direction: column-reverse;
+	gap: 8px;
+	pointer-events: none;
+}
+
+.toast {
+	min-height: 40px;
+	max-width: 320px;
+	padding: 11px 16px;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	background: var(--s-3);
+	backdrop-filter: var(--blur);
+	-webkit-backdrop-filter: var(--blur);
+	border-left: 2px solid var(--line-3);
+	border-radius: var(--r-0);
+	color: var(--t-1);
+	font: 300 var(--fs-body) / 1.4 var(--f-ui);
+	animation: toast-in var(--d-2) var(--e-entrance) both;
+}
+
+.toast__icon {
+	font-size: 18px;
+	color: var(--t-2);
+	flex: 0 0 auto;
+}
+
+/* Must be an animation, not a transition: notify.js removes the node on
+   `animationend`, which a transition never fires. */
+.toast--leaving {
+	animation: toast-out var(--d-2) var(--e-out) both;
+}
+
+@keyframes toast-in {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+}
+
+@keyframes toast-out {
+	to {
+		opacity: 0;
+	}
+}
+
+/* ----------------------------------------------------------------- fatal */
+
+.fatal {
+	position: fixed;
+	inset: 0;
+	z-index: 9999;
+	background: var(--s-4);
+	display: grid;
+	place-content: center;
+	justify-items: start;
+	gap: 16px;
+	padding: 40px;
+	text-align: left;
+}
+
+.fatal__title {
+	font: 400 var(--fs-display) / 1 var(--f-display);
+	color: var(--t-1);
+}
+
+.fatal__detail {
+	font: 300 var(--fs-lead) / 1.5 var(--f-ui);
+	color: var(--t-2);
+	max-width: 40ch;
+}
+
+.button--primary {
+	height: 40px;
+	padding: 0 20px;
+	background: var(--sig);
+	color: var(--t-inv);
+	border-radius: var(--r-1);
+	font: 500 var(--fs-label) / 1 var(--f-ui);
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------- loading */
+
+.loading {
+	position: fixed;
+	inset: 0;
+	z-index: 9998;
+	background: var(--s-4);
+	display: grid;
+	grid-template-rows: auto 1fr auto;
+	justify-items: center;
+	padding: 40px;
+	transition: opacity var(--d-4) var(--e-out);
+}
+
+.loading::before,
+.loading::after {
+	content: "";
+	position: absolute;
+	width: 14px;
+	height: 14px;
+	border-color: var(--line-mark);
+	border-style: solid;
+}
+
+.loading::before {
+	top: 20px;
+	left: 20px;
+	border-width: 1px 0 0 1px;
+}
+
+.loading::after {
+	bottom: 20px;
+	right: 20px;
+	border-width: 0 1px 1px 0;
+}
+
+.loading__head {
+	justify-self: start;
+	align-self: start;
+	transition:
+		opacity 320ms var(--e-out),
+		transform 320ms var(--e-out);
+}
+
+.loading__mark {
+	font: 400 var(--fs-display) / 1 var(--f-display);
+	letter-spacing: -0.015em;
+	color: var(--t-1);
+}
+
+.loading__strap {
+	margin-top: 12px;
+	max-width: 34ch;
+	font: 300 var(--fs-lead) / 1.4 var(--f-ui);
+	letter-spacing: 0.02em;
+	color: var(--t-2);
+}
+
+/* The source animation was authored on solid black rather than transparency, so
+   it will always be a rectangle on the page. Rather than fight it, frame it:
+   a hairline-bordered plate, which is exactly what the garment chips are. */
+.loading__plate {
+	position: relative;
+	align-self: end;
+	width: 400px;
+	max-width: 100%;
+	background: #000;
+	box-shadow: inset 0 0 0 1px var(--line-1);
+	transition:
+		opacity 320ms var(--e-out),
+		transform 320ms var(--e-out);
+}
+
+.loading__plate img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+.loading__plate figcaption {
+	position: absolute;
+	left: 8px;
+	bottom: 6px;
+	font: 400 var(--fs-micro) / 1 var(--f-mono);
+	letter-spacing: 0.08em;
+	color: var(--t-3);
+}
+
+.loading__meter {
+	width: min(400px, 100% - 80px);
+	align-self: end;
+	margin-top: 34px;
+}
+
+.loading__pct {
+	text-align: right;
+	margin-bottom: 14px;
+	font: 400 var(--fs-display) / 1 var(--f-display);
+	letter-spacing: -0.02em;
+	color: var(--t-1);
+	font-variant-numeric: tabular-nums;
+}
+
+.loading__pct i {
+	font-size: 0.45em;
+	font-style: normal;
+	color: var(--t-3);
+	margin-left: 0.1em;
+}
+
+.loading__rule {
+	position: relative;
+	height: 1px;
+	background: var(--line-1);
+}
+
+.loading__rule span {
+	position: absolute;
+	inset: 0;
+	background: var(--t-1);
+	transform-origin: left;
+	transform: scaleX(0);
+	/* Byte progress is monotonic data; easing it would be lying about it. */
+	transition: transform var(--d-2) linear;
+}
+
+.loading__read {
+	margin-top: 11px;
+	display: flex;
+	justify-content: space-between;
+	font: 400 var(--fs-meta) / 1 var(--f-mono);
+	letter-spacing: 0.02em;
+	color: var(--t-3);
+	text-transform: uppercase;
+}
+
+.loading__file {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.loading__bytes {
+	font-variant-numeric: tabular-nums;
+}
+
+/* The one live-signal use of vermilion. */
+.dot {
+	width: 4px;
+	height: 4px;
+	background: var(--sig);
+	display: block;
+}
+
+.loading__retry {
+	display: block;
+	margin-top: 16px;
+	margin-left: auto;
+	color: var(--t-1);
+	border-bottom: 1px solid var(--line-2);
+	padding-bottom: 2px;
+}
+
+.loading--failed .loading__rule span {
+	background: var(--sig);
+}
+
+.loading--failed .dot {
+	background: var(--sig);
+}
+
+.loading--done .dot {
+	background: var(--pos);
+}
+
+.loading--done .loading__head,
+.loading--done .loading__plate {
+	opacity: 0;
+	transform: translateY(-10px);
+	transition-delay: 240ms;
+}
+
+.loading--done {
+	opacity: 0;
+	transition-delay: 380ms;
+}
+
+/* -------------------------------------------------------------- shortcuts */
+
+.sheet {
+	margin: auto;
+	padding: 0;
+	max-width: 520px;
+	width: calc(100% - 40px);
+	background: var(--s-3);
+	backdrop-filter: var(--blur);
+	-webkit-backdrop-filter: var(--blur);
+	border: 1px solid var(--line-1);
+	border-radius: var(--r-1);
+	color: var(--t-1);
+}
+
+.sheet::backdrop {
+	background: rgba(var(--void), 0.7);
+}
+
+.sheet__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 24px 24px 16px;
+	border-bottom: 1px solid var(--line-1);
+}
+
+.sheet__title {
+	font: 400 var(--fs-title) / 1 var(--f-display);
+	color: var(--t-1);
+}
+
+.sheet__close {
+	width: 40px;
+	height: 40px;
+	display: grid;
+	place-items: center;
+	color: var(--t-2);
+}
+
+.shortcuts {
+	display: grid;
+	grid-template-columns: 8rem 1fr;
+	gap: 10px 16px;
+	padding: 20px 24px 24px;
+	max-height: 60vh;
+	overflow-y: auto;
+}
+
+.shortcuts dt {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+.shortcuts dd {
+	font-size: var(--fs-body);
+	color: var(--t-2);
+}
+
+kbd {
+	display: inline-grid;
+	place-items: center;
+	min-width: 22px;
+	height: 22px;
+	padding: 0 6px;
+	font: 400 var(--fs-meta) / 1 var(--f-mono);
+	color: var(--t-1);
+	background: var(--s-2);
+	box-shadow: inset 0 0 0 1px var(--line-2);
+	border-radius: var(--r-1);
+}
+
+/* ---------------------------------------------------------------- tablet */
+
+@media (min-width: 768px) and (max-width: 1023px) {
+	.panel {
+		width: 336px;
+		grid-template-rows: 80px 1fr;
+	}
+
+	.panel::before {
+		inset: 0 0 0 -110px;
+		mask-image: linear-gradient(to right, transparent 0, #000 110px);
+		-webkit-mask-image: linear-gradient(to right, transparent 0, #000 110px);
+	}
+
+	.panel__head {
+		padding: 32px 24px 0 28px;
+	}
+
+	.panel__head::after {
+		left: 28px;
+		right: 24px;
+	}
+
+	.panel__mark {
+		font-size: 1.75rem;
+	}
+
+	.sections {
+		padding: 24px 24px 28px 28px;
+		gap: 28px;
+	}
+
+	.section {
+		grid-template-rows: 20px 97px;
+	}
+
+	.items {
+		grid-auto-columns: 84px;
+		gap: 16px;
+	}
+
+	.chip {
+		width: 84px;
+	}
+
+	.console {
+		left: max(28px, env(safe-area-inset-left));
+		bottom: max(28px, env(safe-area-inset-bottom));
+	}
+
+	.panel__tab {
+		width: 40px;
+		height: 118px;
+	}
+}
+
+/* ----------------------------------------------------------------- phone */
+
+@media (max-width: 767px) {
+	/* Eight stacked rows on a 375px viewport either shrink chips below touch
+	   minimums or bury the character, so the panel becomes a bottom sheet and
+	   the categories become tabs — one category visible at a time. */
+	.panel {
+		inset: auto 0 56px 0;
+		width: 100%;
+		height: auto;
+		grid-template-rows: 52px 40px auto;
+		border-top: 1px solid var(--line-1);
+	}
+
+	.panel::before {
+		inset: -1px 0 0 0;
+		background: var(--scrim-v);
+		mask-image: none;
+		-webkit-mask-image: none;
+	}
+
+	.panel.collapsed {
+		transform: translateY(calc(100% + 56px));
+	}
+
+	.panel__head {
+		padding: 0 20px;
+		align-items: center;
+		grid-template-rows: 52px;
+	}
+
+	.panel__head::after {
+		display: none;
+	}
+
+	.panel__head::before {
+		content: "";
+		position: absolute;
+		top: 8px;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 36px;
+		height: 3px;
+		background: var(--line-2);
+	}
+
+	.panel__mark {
+		font-size: var(--fs-title);
+		letter-spacing: -0.01em;
+	}
+
+	.panel__tabs {
+		display: flex;
+		gap: 6px;
+		padding: 0 20px;
+		height: 40px;
+		background: none;
+		box-shadow: none;
+		overflow-x: auto;
+		scrollbar-width: none;
+		scroll-snap-type: x proximity;
+		mask-image: linear-gradient(
+			90deg,
+			transparent 0,
+			#000 16px,
+			#000 calc(100% - 16px),
+			transparent 100%
+		);
+		-webkit-mask-image: linear-gradient(
+			90deg,
+			transparent 0,
+			#000 16px,
+			#000 calc(100% - 16px),
+			transparent 100%
+		);
+	}
+
+	.panel__tabs::-webkit-scrollbar {
+		display: none;
+	}
+
+	.panel__tabs button {
+		height: 40px;
+		padding: 0 14px;
+		flex: 0 0 auto;
+		box-shadow: none;
+		letter-spacing: 0.16em;
+		font-size: var(--fs-label);
+		scroll-snap-align: center;
+	}
+
+	.panel__tabs button[aria-checked="true"] {
+		color: var(--t-1);
+		box-shadow: inset 0 -1px 0 0 var(--line-3);
+	}
+
+	.sections {
+		padding: 8px 0 16px;
+		gap: 0;
+		mask-image: none;
+		-webkit-mask-image: none;
+	}
+
+	.section {
+		display: none;
+		grid-template-rows: 93px;
+		padding: 0 20px;
+	}
+
+	.section--active {
+		display: grid;
+	}
+
+	.section__head {
+		display: none;
+	}
+
+	.items {
+		grid-auto-columns: 80px;
+		gap: 10px;
+		scroll-padding: 0 20px;
+	}
+
+	.chip {
+		width: 80px;
+	}
+
+	/* Looks and the light/quality/export controls get their own tab rather than
+	   being dropped or stacked under the chip track. */
+	.extras {
+		display: none;
+		padding: 0 20px 8px;
+		max-height: 42dvh;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+	}
+
+	.extras--active {
+		display: grid;
+	}
+
+	.console {
+		left: 0;
+		right: 0;
+		bottom: 0;
+		height: 56px;
+		padding: 0 16px calc(0px + env(safe-area-inset-bottom));
+		background: var(--s-2);
+		backdrop-filter: var(--blur);
+		-webkit-backdrop-filter: var(--blur);
+		border-top: 1px solid var(--line-1);
+		justify-content: space-between;
+		gap: 0;
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+
+	.console::-webkit-scrollbar {
+		display: none;
+	}
+
+	.console button {
+		width: 44px;
+		height: 44px;
+		flex: 0 0 auto;
+	}
+
+	.console__divider {
+		display: none;
+	}
+
+	.capture {
+		width: 44px !important;
+		height: 44px !important; /* WCAG 2.5.5 minimum; the console is 56px tall */
+		padding: 0;
+		justify-content: center;
+	}
+
+	.capture__label {
+		display: none;
+	}
+
+	/* Eight 44px targets plus the capture button already exceed 390px, so the two
+	   controls that earn the least on touch go: the keyboard-shortcuts sheet is
+	   meaningless without a keyboard, and volume is a hardware button on a phone.
+	   Burying the primary action behind a horizontal scroll is not an option. */
+	#shortcuts-open,
+	.console__slider {
+		display: none;
+	}
+
+	.console .console__recall {
+		display: none;
+		flex: 0 0 auto;
+	}
+
+	body:not(.panel-open) .console .console__recall {
+		display: grid;
+	}
+
+	.panel__tab {
+		display: none;
+	}
+
+	#volume {
+		height: 44px;
+		width: 64px;
+	}
+
+	.plate-caption {
+		bottom: calc(56px + env(safe-area-inset-bottom) + 16px);
+		font-size: var(--fs-body);
+		max-width: calc(100% - 32px);
+	}
+
+	body.panel-open .plate-caption {
+		bottom: calc(209px + env(safe-area-inset-bottom) + 56px + 16px);
+	}
+
+	/* Not enough margin at this width for the marks to read as marks. */
+	#screenshotable::before,
+	#screenshotable::after,
+	.loading::before,
+	.loading::after {
+		display: none;
+	}
+
+	.toasts {
+		left: 16px;
+		right: 16px;
+		bottom: calc(56px + env(safe-area-inset-bottom) + 12px);
+	}
+
+	.toast {
+		max-width: none;
+	}
+
+	.loading {
+		padding: 24px;
+	}
+
+	.loading__mark {
+		font-size: 2rem;
+	}
+
+	.loading__plate {
+		width: 280px;
+	}
+
+	.shortcuts {
+		grid-template-columns: 1fr;
+		gap: 4px 0;
+	}
+
+	.shortcuts dd {
+		margin-bottom: 10px;
+	}
+}
+
+/* ------------------------------------------------------- reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 1ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 1ms !important;
+		scroll-behavior: auto !important;
+	}
+
+	.panel {
+		transition: opacity var(--d-2) linear !important;
+	}
+
+	.panel.collapsed {
+		transform: none;
+		opacity: 0;
+		visibility: hidden;
+	}
+
+	/* The one genuinely per-frame loop in the interface. */
+	.console::after {
+		display: none;
+	}
+}
+
+@media (prefers-reduced-transparency: reduce) {
+	.panel::before,
+	.panel__tab,
+	.toast,
+	.sheet {
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+	}
+
+	.panel::before {
+		background: rgba(var(--void), 0.94);
+		mask-image: none;
+		-webkit-mask-image: none;
+		inset: 0;
+	}
+}
+
+@media (forced-colors: active) {
+	.chip,
+	.seg button,
+	.look {
+		forced-color-adjust: none;
+		border: 1px solid ButtonBorder;
+		background: ButtonFace;
+		color: ButtonText;
+	}
+
+	.chip[aria-selected="true"],
+	.seg button[aria-checked="true"],
+	.look[aria-pressed="true"] {
+		border: 2px solid Highlight;
+	}
+
+	.panel::before {
+		background: Canvas;
+	}
 }

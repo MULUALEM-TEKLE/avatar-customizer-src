@@ -1,478 +1,421 @@
-import { scene } from "./world"
-import { loader } from "./loadingManager"
-
 import * as THREE from "three"
 
-let lakeShaderMaterial, lake, mountainMaterial, skyUniforms
+import { scene, backdrop, currentTier } from "./world.js"
+import { LIVE, onPreset } from "./presets.js"
+import { cnoise, waves, dither } from "./shaders/common.glsl.js"
 
-const debugObject = {}
-debugObject.depthColor = "#186691"
-debugObject.surfaceColor = "#9bd8ff"
+let lake = null
+let lakeMaterial = null
+let mountain = null
+let mountainMaterial = null
+let sky = null
+let skyMaterial = null
+let props = null
 
-function mountEnvironment(modelUrl, callback) {
-	loader.load(modelUrl, (gltf) => {
-		let env = gltf.scene
-		env.position.set(20, -0.5, -50)
-		env.scale.set(4, 4, 4)
-		scene.add(env)
+let floorY = -0.9
 
-		addLake()
-		addMountains()
-		addSky()
+/* ------------------------------------------------------------------ lake */
 
-		callback()
-	})
-}
-
-function addLake() {
-	// Vertex Shader
-	const lakeVertexShader = `
+const LAKE_VERTEX = /* glsl */ `
 uniform float uTime;
 uniform float uBigWavesElevation;
 uniform vec2 uBigWavesFrequency;
 uniform float uBigWavesSpeed;
-
 uniform float uSmallWavesElevation;
 uniform float uSmallWavesFrequency;
 uniform float uSmallWavesSpeed;
-uniform float uSmallWavesIteration;
+uniform int uSmallWavesIteration;
 
 varying float vElevation;
 
-// Classic Perlin 3D Noise
-// by Stefan Gustavson
-//
-vec4 permute(vec4 x)
-{
-    return mod(((x*34.0)+1.0)*x, 289.0);
+#include <fog_pars_vertex>
+
+${cnoise}
+${waves}
+
+void main() {
+	vec4 modelPosition = modelMatrix * vec4(position, 1.0);
+
+	float elevation =
+		bigWaves(modelPosition.xyz, uTime, uBigWavesElevation, uBigWavesFrequency, uBigWavesSpeed) +
+		smallWaves(modelPosition.xyz, uTime, uSmallWavesElevation, uSmallWavesFrequency, uSmallWavesSpeed, uSmallWavesIteration);
+
+	modelPosition.y += elevation;
+
+	vec4 mvPosition = viewMatrix * modelPosition;
+	gl_Position = projectionMatrix * mvPosition;
+
+	vElevation = elevation;
+	#include <fog_vertex>
 }
-vec4 taylorInvSqrt(vec4 r)
-{
-    return 1.79284291400159 - 0.85373472095314 * r;
-}
-vec3 fade(vec3 t)
-{
-    return t*t*t*(t*(t*6.0-15.0)+10.0);
-}
+`
 
-float cnoise(vec3 P)
-{
-    vec3 Pi0 = floor(P); // Integer part for indexing
-    vec3 Pi1 = Pi0 + vec3(1.0); // Integer part + 1
-    Pi0 = mod(Pi0, 289.0);
-    Pi1 = mod(Pi1, 289.0);
-    vec3 Pf0 = fract(P); // Fractional part for interpolation
-    vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
-    vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
-    vec4 iy = vec4(Pi0.yy, Pi1.yy);
-    vec4 iz0 = Pi0.zzzz;
-    vec4 iz1 = Pi1.zzzz;
-
-    vec4 ixy = permute(permute(ix) + iy);
-    vec4 ixy0 = permute(ixy + iz0);
-    vec4 ixy1 = permute(ixy + iz1);
-
-    vec4 gx0 = ixy0 / 7.0;
-    vec4 gy0 = fract(floor(gx0) / 7.0) - 0.5;
-    gx0 = fract(gx0);
-    vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
-    vec4 sz0 = step(gz0, vec4(0.0));
-    gx0 -= sz0 * (step(0.0, gx0) - 0.5);
-    gy0 -= sz0 * (step(0.0, gy0) - 0.5);
-
-    vec4 gx1 = ixy1 / 7.0;
-    vec4 gy1 = fract(floor(gx1) / 7.0) - 0.5;
-    gx1 = fract(gx1);
-    vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
-    vec4 sz1 = step(gz1, vec4(0.0));
-    gx1 -= sz1 * (step(0.0, gx1) - 0.5);
-    gy1 -= sz1 * (step(0.0, gy1) - 0.5);
-
-    vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
-    vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
-    vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
-    vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
-    vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
-    vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
-    vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
-    vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
-
-    vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
-    g000 *= norm0.x;
-    g010 *= norm0.y;
-    g100 *= norm0.z;
-    g110 *= norm0.w;
-    vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
-    g001 *= norm1.x;
-    g011 *= norm1.y;
-    g101 *= norm1.z;
-    g111 *= norm1.w;
-
-    float n000 = dot(g000, Pf0);
-    float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
-    float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
-    float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
-    float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
-    float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
-    float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
-    float n111 = dot(g111, Pf1);
-
-    vec3 fade_xyz = fade(Pf0);
-    vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
-    vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
-    float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x);
-    return 2.2 * n_xyz;
-}
-
-
-void main(){
-    vec4 modelPosition = modelMatrix * vec4(position , 1.0);
-
-    float elevationVariable = sin(modelPosition.x * uBigWavesFrequency.x + uTime * uBigWavesSpeed)
-                            *sin(modelPosition.z * uBigWavesFrequency.y + uTime * uBigWavesSpeed) * uBigWavesElevation;
-
-    for(float i = 1.0 ; i<= uSmallWavesIteration ; i++){
-        elevationVariable -= abs(cnoise(vec3(
-        modelPosition.xz * uSmallWavesFrequency * i ,uTime * uSmallWavesSpeed
-    )) * uSmallWavesElevation/i);
-    }
-
-
-
-    modelPosition.y += elevationVariable ;
-
-    vec4 viewPosition = viewMatrix * modelPosition;
-    vec4 projectedPosition = projectionMatrix * viewPosition;
-
-    gl_Position = projectedPosition;
-
-    vElevation = elevationVariable;
-}
-    `
-
-	// Fragment Shader
-	const lakeFragmentShader = `
+const LAKE_FRAGMENT = /* glsl */ `
 uniform vec3 uDepthColor;
 uniform vec3 uSurfaceColor;
 uniform float uColorOffset;
 uniform float uColorMultiplier;
 
+varying float vElevation;
+
+#include <fog_pars_fragment>
+${dither}
+
+void main() {
+	float mixStrength = smoothstep(0.0, 1.0, (vElevation + uColorOffset) * uColorMultiplier);
+	vec3 color = mix(uDepthColor, uSurfaceColor, mixStrength);
+
+	gl_FragColor = vec4(color, 1.0);
+	#include <fog_fragment>
+	#include <tonemapping_fragment>
+	#include <colorspace_fragment>
+	gl_FragColor.rgb = applyDither(gl_FragColor.rgb, gl_FragCoord.xy);
+}
+`
+
+function addLake() {
+	const tier = currentTier()
+	lakeMaterial = new THREE.ShaderMaterial({
+		fog: true,
+		uniforms: {
+			...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+			uTime: { value: 0 },
+			uBigWavesElevation: { value: 0.1 },
+			uBigWavesFrequency: { value: new THREE.Vector2(0.25, 0.125) },
+			uBigWavesSpeed: { value: 0.25 },
+			uSmallWavesElevation: { value: 0.05 },
+			uSmallWavesFrequency: { value: 1 },
+			uSmallWavesSpeed: { value: 0.1 },
+			// Cutting segments without cutting iterations is what produces the
+			// strobing you would otherwise blame on the tessellation.
+			uSmallWavesIteration: { value: tier.lakeIterations },
+			uDepthColor: { value: LIVE.oceanDepth },
+			uSurfaceColor: { value: LIVE.oceanSurface },
+			uColorOffset: { value: 0.08 },
+			uColorMultiplier: { value: 5 },
+		},
+		vertexShader: LAKE_VERTEX,
+		fragmentShader: LAKE_FRAGMENT,
+	})
+
+	lake = new THREE.Mesh(buildLakeGeometry(), lakeMaterial)
+	lake.position.set(0, floorY - 0.25, -54.5)
+	backdrop.add(lake)
+}
+
+function buildLakeGeometry() {
+	const [width, depth, segX, segY] = currentTier().lake
+	const geometry = new THREE.PlaneGeometry(width, depth, segX, segY)
+	geometry.rotateX(-Math.PI / 2)
+	return geometry
+}
+
+/* ------------------------------------------------------------- mountains */
+
+const MOUNTAIN_VERTEX = /* glsl */ `
+uniform float uBigWavesElevation;
+uniform float uSmallWavesElevation;
+uniform int uSmallWavesIteration;
 
 varying float vElevation;
 
-void main(){
-    float mixStrength = (vElevation + uColorOffset) * uColorMultiplier;
-    vec3 color = mix(uDepthColor  , uSurfaceColor , mixStrength);
-    gl_FragColor = vec4(color , 1.0 );
+#include <fog_pars_vertex>
+
+${cnoise}
+
+void main() {
+	vec4 modelPosition = modelMatrix * vec4(position, 1.0);
+
+	float elevation = sin(modelPosition.x * 0.2) * sin(modelPosition.z * 0.12) * uBigWavesElevation;
+
+	// The old shader fed modelPosition.x * i straight into the noise, which at
+	// 8 iterations resolved 12cm features on a ridge 127m away — roughly one
+	// pixel, so it read as crawling sandpaper rather than as rock. Scaling the
+	// domain down and stopping at 4 gives 6.7m / 3.3m / 2.2m / 1.7m structure.
+	for (int i = 1; i <= 8; i++) {
+		if (i > uSmallWavesIteration) break;
+		float fi = float(i);
+		elevation -= abs(cnoise(vec3(modelPosition.xz * 0.15 * fi, modelPosition.y)) * uSmallWavesElevation / fi);
+	}
+
+	modelPosition.y += elevation;
+
+	vec4 mvPosition = viewMatrix * modelPosition;
+	gl_Position = projectionMatrix * mvPosition;
+
+	vElevation = elevation;
+	#include <fog_vertex>
 }
-    `
+`
 
-	// Shader Material
-	lakeShaderMaterial = new THREE.ShaderMaterial({
-		vertexShader: lakeVertexShader,
-		fragmentShader: lakeFragmentShader,
-		uniforms: {
-			uTime: {
-				value: 0,
-			},
+const MOUNTAIN_FRAGMENT = /* glsl */ `
+uniform vec3 uLowColor;
+uniform vec3 uMidColor;
+uniform vec3 uHighColor;
+uniform vec3 uSnowColor;
 
-			uBigWavesElevation: {
-				value: 0.1,
-			},
-			uBigWavesFrequency: {
-				value: new THREE.Vector2(0.25, 0.125),
-			},
-			uBigWavesSpeed: {
-				value: 0.25,
-			},
+varying float vElevation;
 
-			uSmallWavesElevation: {
-				value: 0.05,
-			},
-			uSmallWavesFrequency: {
-				value: 1,
-			},
-			uSmallWavesSpeed: {
-				value: 0.1,
-			},
-			uSmallWavesIteration: {
-				value: 2,
-			},
+#include <fog_pars_fragment>
+${dither}
 
-			uDepthColor: {
-				value: new THREE.Color(debugObject.depthColor),
-			},
-			uSurfaceColor: {
-				value: new THREE.Color(debugObject.surfaceColor),
-			},
-			uColorOffset: {
-				value: 0.08,
-			},
-			uColorMultiplier: {
-				value: 5,
-			},
-		},
-	})
+void main() {
+	float mid = 1.5;
+	float high = 4.0;
+	float snow = 4.5;
 
-	// Update the material of your plane
+	vec3 color = mix(uLowColor, uMidColor, smoothstep(0.0, mid, vElevation));
+	color = mix(color, uHighColor, smoothstep(mid, high, vElevation));
+	color = mix(color, uSnowColor, smoothstep(high, snow, vElevation));
 
-	let lakeGeometry = new THREE.PlaneGeometry(100, 100, 512, 512)
-	lake = new THREE.Mesh(lakeGeometry, lakeShaderMaterial)
-	lake.rotateX(-Math.PI / 2)
-	lake.position.set(0, -1.5, -54.5)
-	scene.add(lake)
+	gl_FragColor = vec4(color, 1.0);
+	#include <fog_fragment>
+	#include <tonemapping_fragment>
+	#include <colorspace_fragment>
+	gl_FragColor.rgb = applyDither(gl_FragColor.rgb, gl_FragCoord.xy);
+}
+`
+
+function buildMountainGeometry() {
+	const [width, depth, segX, segY] = currentTier().mountain
+	const geometry = new THREE.PlaneGeometry(width, depth, segX, segY)
+	geometry.rotateX(-Math.PI / 2)
+	return geometry
 }
 
 function addMountains() {
-	const mountainGeometry = new THREE.PlaneGeometry(400, 200, 256 * 2, 128 * 2) // More segments for detail
-	mountainGeometry.rotateX(-Math.PI / 2) // Rotate to lay it flat
-
-	let mountainVertexShader = `
-
-            uniform float uTime;
-            uniform float uBigWavesElevation;
-            uniform vec2 uBigWavesFrequency;
-            uniform float uBigWavesSpeed;
-
-            uniform float uSmallWavesElevation;
-            uniform float uSmallWavesFrequency;
-            uniform float uSmallWavesSpeed;
-            uniform float uSmallWavesIteration;
-
-            varying float vElevation;
-
-            vec4 permute(vec4 x)
-            {
-                return mod(((x*34.0)+1.0)*x, 289.0);
-            }
-            vec4 taylorInvSqrt(vec4 r)
-            {
-                return 1.79284291400159 - 0.85373472095314 * r;
-            }
-            vec3 fade(vec3 t)
-            {
-                return t*t*t*(t*(t*6.0-15.0)+10.0);
-            }
-
-            vec2 fade(vec2 t) {return t*t*t*(t*(t*6.0-15.0)+10.0);}
-
-            float cnoise(vec3 P)
-            {
-                vec3 Pi0 = floor(P); // Integer part for indexing
-                vec3 Pi1 = Pi0 + vec3(1.0); // Integer part + 1
-                Pi0 = mod(Pi0, 289.0);
-                Pi1 = mod(Pi1, 289.0);
-                vec3 Pf0 = fract(P); // Fractional part for interpolation
-                vec3 Pf1 = Pf0 - vec3(1.0); // Fractional part - 1.0
-                vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
-                vec4 iy = vec4(Pi0.yy, Pi1.yy);
-                vec4 iz0 = Pi0.zzzz;
-                vec4 iz1 = Pi1.zzzz;
-
-                vec4 ixy = permute(permute(ix) + iy);
-                vec4 ixy0 = permute(ixy + iz0);
-                vec4 ixy1 = permute(ixy + iz1);
-
-                vec4 gx0 = ixy0 / 7.0;
-                vec4 gy0 = fract(floor(gx0) / 7.0) - 0.5;
-                gx0 = fract(gx0);
-                vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
-                vec4 sz0 = step(gz0, vec4(0.0));
-                gx0 -= sz0 * (step(0.0, gx0) - 0.5);
-                gy0 -= sz0 * (step(0.0, gy0) - 0.5);
-
-                vec4 gx1 = ixy1 / 7.0;
-                vec4 gy1 = fract(floor(gx1) / 7.0) - 0.5;
-                gx1 = fract(gx1);
-                vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
-                vec4 sz1 = step(gz1, vec4(0.0));
-                gx1 -= sz1 * (step(0.0, gx1) - 0.5);
-                gy1 -= sz1 * (step(0.0, gy1) - 0.5);
-
-                vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
-                vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
-                vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
-                vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
-                vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
-                vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
-                vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
-                vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
-
-                vec4 norm0 = taylorInvSqrt(vec4(dot(g000, g000), dot(g010, g010), dot(g100, g100), dot(g110, g110)));
-                g000 *= norm0.x;
-                g010 *= norm0.y;
-                g100 *= norm0.z;
-                g110 *= norm0.w;
-                vec4 norm1 = taylorInvSqrt(vec4(dot(g001, g001), dot(g011, g011), dot(g101, g101), dot(g111, g111)));
-                g001 *= norm1.x;
-                g011 *= norm1.y;
-                g101 *= norm1.z;
-                g111 *= norm1.w;
-
-                float n000 = dot(g000, Pf0);
-                float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
-                float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
-                float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
-                float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
-                float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
-                float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
-                float n111 = dot(g111, Pf1);
-
-                vec3 fade_xyz = fade(Pf0);
-                vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
-                vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
-                float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x);
-                return 2.2 * n_xyz;
-            }
-
-
-
-            void main() {
-                vec4 modelPosition = modelMatrix * vec4(position , 1.0);
-
-                float elevationVariable = sin(modelPosition.x * .2 )
-                                        *sin(modelPosition.z * .12
-                 ) * uBigWavesElevation;
-
-                for(float i = 1.0 ; i<= uSmallWavesIteration ; i++){
-                    elevationVariable -= abs(cnoise(vec3(
-                    modelPosition.x  * i , modelPosition.z * i , modelPosition.y
-                )) * uSmallWavesElevation/i);
-                }
-
-
-
-                modelPosition.y += elevationVariable ;
-
-                vec4 viewPosition = viewMatrix * modelPosition;
-                vec4 projectedPosition = projectionMatrix * viewPosition;
-
-                gl_Position = projectedPosition;
-
-                vElevation = elevationVariable;
-            }
-
-        `
-
-	let mountainFragmentShader =
-		//basic fragment shader
-		`
-            varying float vElevation;
-
-            void main() {
-                // Define colors for different elevations
-                vec3 baseColor = vec3(0.5, 0.5, 0.2); // Green for lower elevations
-                vec3 midColor = vec3(0.5, 0.4, 0.2);  // Brown for middle elevations
-                vec3 highColor = vec3(0.5, 0.5, 0.5); // Gray for higher elevations
-                vec3 snowColor = vec3(1.0, 1.0, 1.0); // White for snow-capped peaks
-
-                // Define elevation thresholds
-                float midElevation = 1.5;
-                float highElevation = 4.0;
-                float snowElevation = 4.5;
-
-                // Interpolate colors based on elevation
-                vec3 color;
-                if (vElevation < midElevation) {
-                    color = mix(baseColor, midColor, vElevation / midElevation);
-                } else if (vElevation < highElevation) {
-                    color = mix(midColor, highColor, (vElevation - midElevation) / (highElevation - midElevation));
-                } else {
-                    color = mix(highColor, snowColor, (vElevation - highElevation) / (snowElevation - highElevation));
-                }
-
-                gl_FragColor = vec4(color, 1.0);
-            }
-
-            `
-
 	mountainMaterial = new THREE.ShaderMaterial({
-		vertexShader: mountainVertexShader /* your vertex shader code */,
-		fragmentShader: mountainFragmentShader /* basic fragment shader code */,
-		// Add uniforms if needed
+		fog: true,
 		uniforms: {
-			uBigWavesElevation: {
-				value: 5.25,
-			},
-			uBigWavesFrequency: {
-				value: new THREE.Vector2(0.25, 0.125),
-			},
-			uBigWavesSpeed: {
-				value: 0.25,
-			},
-
-			uSmallWavesElevation: {
-				value: 1.3,
-			},
-			uSmallWavesFrequency: {
-				value: 1,
-			},
-			uSmallWavesSpeed: {
-				value: 0.1,
-			},
-			uSmallWavesIteration: {
-				value: 8,
-			},
+			...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
+			uBigWavesElevation: { value: 5.25 },
+			uSmallWavesElevation: { value: 1.3 },
+			uSmallWavesIteration: { value: currentTier().mountainIterations },
+			uLowColor: { value: LIVE.mtnLow },
+			uMidColor: { value: LIVE.mtnMid },
+			uHighColor: { value: LIVE.mtnHigh },
+			uSnowColor: { value: LIVE.mtnSnow },
 		},
+		vertexShader: MOUNTAIN_VERTEX,
+		fragmentShader: MOUNTAIN_FRAGMENT,
 	})
 
-	const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial)
+	mountain = new THREE.Mesh(buildMountainGeometry(), mountainMaterial)
 	mountain.position.set(0, 1, -125)
 	mountain.scale.set(1, 0.75, 0.1)
 	mountain.rotateY(Math.PI)
-	scene.add(mountain)
+	backdrop.add(mountain)
 }
 
-function addSky() {
-	const skyGeometry = new THREE.PlaneGeometry(400, 100, 16, 16)
-	// skyGeometry.rotateX(-Math.PI / 2);
-	skyGeometry.translate(0, 0, -150)
+/* ------------------------------------------------------------------- sky */
 
-	const skyVertexShader = `
-            varying vec2 vUv;
+const SKY_VERTEX = /* glsl */ `
+varying vec3 vWorldPos;
+void main() {
+	vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+	vWorldPos = worldPosition.xyz;
+	gl_Position = projectionMatrix * viewMatrix * worldPosition;
+}
+`
 
-            void main() {
-                vUv = uv;
-                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-            }
-            `
+const SKY_FRAGMENT = /* glsl */ `
+uniform vec3 uTop;
+uniform vec3 uHorizon;
+uniform vec3 uSunColor;
+uniform vec3 uSunDir;
+uniform float uSunIntensity;
+uniform float uSunSize;
+uniform float uHaloTight;
+uniform float uHaloWide;
+uniform float uHorizonWarm;
+uniform float uStars;
+uniform float uStarLayers;
+uniform float uTime;
 
-	const skyFragmentShader = `
-            varying vec2 vUv;
-            uniform vec3 topColor;
-            uniform vec3 bottomColor;
+varying vec3 vWorldPos;
 
-            void main() {
-                vec3 finalColor = mix(bottomColor, topColor, vUv.y);
-                gl_FragColor = vec4(finalColor, 1.0);
-            }
-            `
+float hash21(vec2 p) {
+	p = fract(p * vec2(123.34, 456.21));
+	p += dot(p, p + 45.32);
+	return fract(p.x * p.y);
+}
 
-	skyUniforms = {
-		topColor: { value: new THREE.Color(0x0a0a0a) }, //0x141d21
-		bottomColor: { value: new THREE.Color(0x5c92ed) }, //0x2b1d03
+/**
+ * Triangular-PDF dither, ~1 LSB. Applied after the output conversion because
+ * banding is an artifact of the 8-bit quantizer, so the noise has to be sized in
+ * the output domain, not in linear space.
+ */
+vec3 tpdfDither(vec2 fc) {
+	float a = hash21(fc);
+	float b = hash21(fc + 17.31);
+	return vec3((a - b) / 255.0);
+}
+
+vec3 starLayer(vec2 sph, float scale, float density, float sharp) {
+	vec2 uv = sph * scale;
+	vec2 cell = floor(uv);
+	vec2 f = fract(uv) - 0.5;
+
+	// A mask rather than an early return, to keep fragment control flow uniform.
+	float present = step(hash21(cell), density);
+	vec2 off = vec2(hash21(cell + 11.7), hash21(cell + 27.3)) - 0.5;
+	float mag = hash21(cell + 41.1);
+	float d = length(f - off * 0.7);
+
+	float twinkle = 0.72 + 0.28 * sin(uTime * (1.4 + mag * 3.2) + mag * 6.2831);
+	float s = smoothstep(sharp, 0.0, d) * (0.20 + mag * 0.80) * twinkle * present;
+
+	vec3 tint = mix(vec3(0.72, 0.82, 1.0), vec3(1.0, 0.90, 0.76), mag);
+	return tint * s;
+}
+
+void main() {
+	// Driving the gradient off the world-space view direction rather than off
+	// the plane's UVs is what puts the horizon at true eye level regardless of
+	// dolly or aspect — the reason the old two-colour mix read as a painted card.
+	vec3 dir = normalize(vWorldPos - cameraPosition);
+	float h = clamp(dir.y, -1.0, 1.0);
+
+	float t = pow(clamp(h * 1.6, 0.0, 1.0), 0.55);
+	vec3 color = mix(uHorizon, uTop, t);
+
+	float haze = exp(-abs(h) * 11.0);
+	color = mix(color, uHorizon, haze * 0.60);
+
+	// Azimuthal warm swell around the sun. This, not the vertical ramp, is what
+	// makes it read as a sunset — and it keeps the fog colour neutral enough not
+	// to paint the whole ridge orange.
+	vec2 dirAz = normalize(dir.xz + 1e-5);
+	vec2 sunAz = normalize(uSunDir.xz + 1e-5);
+	float az = pow(max(dot(dirAz, sunAz), 0.0), 3.0);
+	color += uSunColor * haze * az * uHorizonWarm;
+
+	float c = dot(dir, uSunDir);
+	float disc = smoothstep(uSunSize, uSunSize + 0.00030, c);
+	float tight = pow(max(c, 0.0), uHaloTight);
+	float wide = pow(max(c, 0.0), uHaloWide);
+	color += uSunColor * (disc * uSunIntensity + tight * 0.55 + wide * 0.20);
+
+	// Uniform branch: coherent across every fragment, so it genuinely skips the
+	// trig at dusk, dawn and noon.
+	if (uStars > 0.0) {
+		vec2 sph = vec2(atan(dir.z, dir.x) * 0.15915494,
+		                asin(clamp(dir.y, -1.0, 1.0)) * 0.31830989);
+		float mask = uStars
+			* smoothstep(-0.01, 0.22, h)
+			* (1.0 - clamp(wide * 1.6, 0.0, 1.0));
+		vec3 s = starLayer(sph, 210.0, 0.045, 0.055);
+		if (uStarLayers > 1.5) s += starLayer(sph, 430.0, 0.030, 0.038) * 0.65;
+		color += s * mask;
 	}
 
-	const skyMaterial = new THREE.ShaderMaterial({
-		uniforms: skyUniforms,
-		vertexShader: skyVertexShader,
-		fragmentShader: skyFragmentShader,
-		side: THREE.DoubleSide,
+	gl_FragColor = vec4(color, 1.0);
+	#include <tonemapping_fragment>
+	#include <colorspace_fragment>
+	gl_FragColor.rgb += tpdfDither(gl_FragCoord.xy);
+}
+`
+
+function addSky() {
+	// 220 tall covers the 142-unit frame with margin at any aspect up to 2.8:1;
+	// the old 100-unit plane missed the top ~15% of the screen, which only went
+	// unnoticed because the clear colour happened to match.
+	const geometry = new THREE.PlaneGeometry(400, 220, 1, 1)
+	geometry.translate(0, 0, -150)
+
+	skyMaterial = new THREE.ShaderMaterial({
+		fog: false,
+		depthWrite: false,
+		depthTest: true,
+		side: THREE.FrontSide,
+		uniforms: {
+			uTop: { value: LIVE.skyTop },
+			uHorizon: { value: LIVE.horizon },
+			uSunColor: { value: LIVE.sunColor },
+			uSunDir: { value: LIVE.sunDir },
+			uSunIntensity: { value: LIVE.sunIntensity },
+			uSunSize: { value: LIVE.sunSize },
+			uHaloTight: { value: LIVE.haloTight },
+			uHaloWide: { value: LIVE.haloWide },
+			uHorizonWarm: { value: LIVE.horizonWarm },
+			uStars: { value: LIVE.stars },
+			uStarLayers: { value: currentTier().starLayers },
+			uTime: { value: 0 },
+		},
+		vertexShader: SKY_VERTEX,
+		fragmentShader: SKY_FRAGMENT,
 	})
 
-	const sky = new THREE.Mesh(skyGeometry, skyMaterial)
-	scene.add(sky)
+	sky = new THREE.Mesh(geometry, skyMaterial)
+	// Drawn last with depth testing on, so the character, lake and mountains
+	// write depth first and 30-50% of these expensive fragments never run.
+	sky.renderOrder = 999
+	backdrop.add(sky)
 }
 
-const clock = new THREE.Clock()
+/* ---------------------------------------------------------------- props */
 
-const animateOcean = () => {
-	if (!lake) return
-	const elapsedTime = clock.getElapsedTime()
-	requestAnimationFrame(animateOcean.bind(lakeShaderMaterial))
-	lakeShaderMaterial.uniforms.uTime.value = elapsedTime
-	// mountainMaterial.uniforms.uTime.value = elapsedTime
-	// renderer.render(scene, camera)
+export function addProps(gltf) {
+	props = gltf.scene
+	// Keeps the same relationship to the ground the original had, now that the
+	// ground sits at the character's feet rather than 35cm below them.
+	props.position.set(20, floorY + 0.75, -50)
+	props.scale.set(4, 4, 4)
+	props.traverse((child) => {
+		if (child.isMesh) child.castShadow = false
+	})
+	backdrop.add(props)
+	return props
 }
 
-export { mountEnvironment, animateOcean }
+/* ----------------------------------------------------------------- api */
+
+export function mountEnvironment({ floorHeight = -0.9 } = {}) {
+	floorY = floorHeight
+
+	addLake()
+	addMountains()
+	addSky()
+
+	onPreset((live) => {
+		if (!skyMaterial) return
+		const u = skyMaterial.uniforms
+		u.uSunIntensity.value = live.sunIntensity
+		u.uSunSize.value = live.sunSize
+		u.uHaloTight.value = live.haloTight
+		u.uHaloWide.value = live.haloWide
+		u.uHorizonWarm.value = live.horizonWarm
+		u.uStars.value = live.stars
+	})
+}
+
+export function rebuildForTier(tier) {
+	if (lake) {
+		lake.geometry.dispose()
+		lake.geometry = buildLakeGeometry()
+		lakeMaterial.uniforms.uSmallWavesIteration.value = tier.lakeIterations
+	}
+	if (mountain) {
+		mountain.geometry.dispose()
+		mountain.geometry = buildMountainGeometry()
+		mountainMaterial.uniforms.uSmallWavesIteration.value = tier.mountainIterations
+	}
+	if (skyMaterial) skyMaterial.uniforms.uStarLayers.value = tier.starLayers
+}
+
+export function updateEnvironment(elapsed) {
+	if (lakeMaterial) lakeMaterial.uniforms.uTime.value = elapsed
+	if (skyMaterial) skyMaterial.uniforms.uTime.value = elapsed
+}
+
+/**
+ * The flagship effect: music swells the water. It drives the lake as well as the
+ * ground grid now — on a 100m surface it is actually visible, which it never was
+ * on the grid alone.
+ */
+export function setAudioLevel(level) {
+	if (lakeMaterial) {
+		lakeMaterial.uniforms.uSmallWavesElevation.value = 0.05 + level * 0.11
+		lakeMaterial.uniforms.uBigWavesElevation.value = 0.1 + level * 0.05
+	}
+}

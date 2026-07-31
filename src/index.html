@@ -4,184 +4,171 @@
 		<meta charset="UTF-8" />
 		<meta
 			name="viewport"
-			content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+			content="width=device-width, initial-scale=1, viewport-fit=cover"
 		/>
 
-		<title>character-customizer</title>
+		<title>Avatar Customizer — Bilal</title>
+		<meta
+			name="description"
+			content="Dress a 3D character from a configurable wardrobe, pose it, and capture the look."
+		/>
+		<meta name="theme-color" content="#0b0c0d" />
+
 		<link rel="stylesheet" href="./style.css" />
+		<link rel="icon" href="/favicon.png" type="image/png" />
 
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
-			href="https://fonts.googleapis.com/css2?family=Raleway:wght@200&display=swap"
 			rel="stylesheet"
+			href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Raleway:wght@300;400;500&display=swap"
 		/>
-
 		<link
 			rel="stylesheet"
-			href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+			href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block"
 		/>
 
-		<link rel="icon" href="/favicon.png" type="image/x-icon" />
-
-		<style>
-			#loading-screen {
-				position: fixed;
-				width: 100%;
-				height: 100%;
-				background-color: #000;
-				display: flex;
-				justify-content: center;
-				align-items: center;
-				z-index: 9999;
-			}
-			#progress-bar {
-				width: 80%;
-				height: 20px;
-				background-color: #444;
-			}
-			#progress {
-				height: 100%;
-				width: 0;
-				background-color: #00f;
-				transition: width 0.5s ease; /* Add this line */
-			}
-		</style>
-
-		<style>
-			.percentage-holder {
-				height: 100%;
-				width: 100%;
-
-				position: fixed;
-				/* top: 50%;
-				left: 50%; */
-				z-index: 5000;
-				display: flex;
-				flex-direction: column;
-				align-items: center;
-				justify-content: center;
-
-				font-size: 1rem;
-				font-weight: bold;
-				background-color: black;
-				opacity: 1;
-				color: ivory;
-			}
-			#percentage {
-				font-weight: bold;
-			}
-			.percentage-animation {
-				animation: fadeInOut 1.5s;
-			}
-			@keyframes fadeInOut {
-				0% {
-					opacity: 0;
-				}
-				25% {
-					opacity: 0.5;
-				}
-				50% {
-					opacity: 1;
-				}
-				75% {
-					opacity: 0.5;
-				}
-				100% {
-					opacity: 0;
-				}
-			}
-			.toggle-collapse span {
-				color: #007bff;
-			}
-
-			.loading-gif {
-				height: 50%;
-				width: 50%;
-
-				/* border: 1px solid red; */
-
-				background-size: contain;
-				/* background-attachment: fixed; */
-				background-position: center;
-				background-repeat: no-repeat;
-			}
-		</style>
+		<link rel="preload" as="image" href="/loader.webp" />
+		<link rel="preload" as="fetch" href="/models/bilal.glb" crossorigin />
 	</head>
+
 	<body>
-		<div class="percentage-holder" id="percentage-holder">
-			<div id="percentage" style="display: flex">0%</div>
+		<h1 class="sr-only">Avatar Customizer</h1>
 
-			<div class="loading-gif" id="loading-gif"></div>
-			LOADING ...
-		</div>
+		<!-- Markup, not JS, so the first paint happens before any script runs. -->
+		<div class="loading" id="loading" role="status">
+			<header class="loading__head">
+				<p class="loading__mark">Bilal</p>
+				<p class="loading__strap">
+					Autumn/Winter — a configurable wardrobe.
+				</p>
+			</header>
 
-		<!-- <div id="loading-screen">
-			<div id="progress-bar">
-				<div id="progress"></div>
+			<figure class="loading__plate">
+				<img src="/loader.webp" alt="" width="400" height="520" />
+				<figcaption>PL.01</figcaption>
+			</figure>
+
+			<div class="loading__meter">
+				<div class="loading__pct" id="loading-percent" aria-hidden="true">0<i>%</i></div>
+				<div class="loading__rule"><span id="loading-fill"></span></div>
+				<div class="loading__read">
+					<span class="loading__file">
+						<i class="dot"></i><span id="loading-label">Avatar</span>
+					</span>
+					<span class="loading__bytes" id="loading-bytes">0.0 MB</span>
+				</div>
+				<button class="text-button loading__retry" id="loading-retry" hidden>
+					Retry
+				</button>
 			</div>
-		</div> -->
+
+			<p class="sr-only" id="loading-status">Loading avatar…</p>
+		</div>
 
 		<div id="screenshotable">
-			<canvas id="webgl" class="webgl"> </canvas>
-			<div class="clothing-names" id="clothing-names"></div>
+			<canvas
+				id="webgl"
+				class="webgl"
+				tabindex="0"
+				role="application"
+				aria-roledescription="3D avatar viewport"
+				aria-label="Bilal, 3D preview"
+				aria-describedby="viewport-help"
+			></canvas>
+			<p class="plate-caption" id="plate-caption"></p>
 		</div>
 
-		<button class="toggle-collapse" id="toggle-collapse">
-			<span class="material-symbols-outlined" id="toggle-collapse-icon">
-				chevron_left
-			</span>
-		</button>
-		<div
-			class="avatar-customizer-ui collapsed unselectable"
-			id="avatar-customizer-ui"
+		<p id="viewport-help" class="sr-only">
+			Drag, or use the left and right arrow keys, to turn the avatar. Scroll,
+			pinch, or use the up and down arrow keys to zoom. Press question mark for
+			all shortcuts.
+		</p>
+
+		<div class="console" id="console" role="group" aria-label="Viewer controls">
+			<button id="audio-play" type="button" aria-label="Play music">
+				<span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
+			</button>
+			<button id="audio-mute" type="button" aria-label="Mute" aria-pressed="false">
+				<span class="material-symbols-outlined" aria-hidden="true">volume_up</span>
+			</button>
+			<div class="console__slider">
+				<input
+					id="volume"
+					type="range"
+					min="0"
+					max="100"
+					step="5"
+					value="30"
+					aria-label="Volume"
+				/>
+			</div>
+
+			<button id="pose" type="button" aria-label="Next pose">
+				<span class="material-symbols-outlined" aria-hidden="true">sports_martial_arts</span>
+			</button>
+			<button id="shuffle" type="button" aria-label="Shuffle a random outfit">
+				<span class="material-symbols-outlined" aria-hidden="true">shuffle</span>
+			</button>
+			<button id="reset-view" type="button" aria-label="Reset view">
+				<span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+			</button>
+			<button id="share" type="button" aria-label="Copy a link to this outfit">
+				<span class="material-symbols-outlined" aria-hidden="true">link</span>
+			</button>
+			<button id="shortcuts-open" type="button" aria-label="Keyboard shortcuts">
+				<span class="material-symbols-outlined" aria-hidden="true">keyboard</span>
+			</button>
+
+			<span class="console__divider" aria-hidden="true"></span>
+
+			<button id="capture" type="button" class="capture" aria-label="Capture image">
+				<span class="material-symbols-outlined" aria-hidden="true">photo_camera</span>
+				<span class="capture__label">Capture</span>
+			</button>
+
+			<!-- Phone only: the floating side tab has nowhere to live at 390px. -->
+			<button class="console__recall" id="panel-recall" type="button" aria-label="Open wardrobe">
+				<span class="material-symbols-outlined" aria-hidden="true">checkroom</span>
+			</button>
+		</div>
+
+		<button
+			class="panel__tab"
+			id="panel-toggle"
+			type="button"
+			aria-expanded="false"
+			aria-controls="panel"
 		>
-			<div class="ui" id="ui"></div>
-		</div>
+			<span aria-hidden="true">Lookbook</span>
+			<span class="sr-only">Wardrobe</span>
+		</button>
 
-		<!-- <div class="color-picker-container" id="color-picker-container">
-			<div class="color-picker-component" id="color-picker-component">
-				<label
-					class="color-picker-label"
-					id="color-picker-label"
-					for="color-picker"
-					>LABEL</label
-				>
-				<input class="color-picker" id="color-picker" type="color" />
-			</div>
-		</div> -->
+		<aside class="panel collapsed" id="panel" aria-label="Wardrobe" inert>
+			<header class="panel__head">
+				<p class="panel__mark" id="panel-title">Bilal</p>
+				<button class="text-button" id="panel-close" type="button">Close</button>
+			</header>
 
-		<div class="buttons-container unselectable">
-			<div style="display: flex; gap: 4px" id="mini-music-player">
-				<button id="startAudio">
-					<span class="material-symbols-outlined" id="audio-play-icon">
-						play_arrow
-					</span>
+			<div
+				class="seg seg--tabs panel__tabs"
+				id="panel-tabs"
+				role="radiogroup"
+				aria-label="Category"
+			></div>
+
+			<div class="sections" id="sections"></div>
+		</aside>
+
+		<dialog class="sheet" id="shortcuts" aria-labelledby="shortcuts-title">
+			<div class="sheet__head">
+				<h2 class="sheet__title" id="shortcuts-title">Keyboard shortcuts</h2>
+				<button class="sheet__close" id="shortcuts-close" type="button" aria-label="Close">
+					<span class="material-symbols-outlined" aria-hidden="true">close</span>
 				</button>
-				<button id="muteAudio">
-					<span class="material-symbols-outlined" id="audio-mute-icon">
-						volume_up
-					</span>
-				</button>
-				<div class="range-container">
-					<input type="range" id="volumeControl" min="0" max="100" value="30" />
-				</div>
 			</div>
-
-			<button id="sampleAnimationBtn">
-				<span class="material-symbols-outlined"> sports_martial_arts </span>
-			</button>
-			<button class="customization-done" id="take-screenshot">
-				<span class="material-symbols-outlined" style="font-size: 36px">
-					photo_camera
-				</span>
-			</button>
-			<button id="reset">
-				<span class="material-symbols-outlined"> restart_alt </span>
-			</button>
-		</div>
-
-		<div id="winamp-container"></div>
+			<dl class="shortcuts" id="shortcuts-list"></dl>
+		</dialog>
 
 		<script type="module" src="./script.js"></script>
 	</body>

@@ -1,209 +1,207 @@
-import * as THREE from "three";
-import { scene } from "./world";
-import { loader } from "./loadingManager";
-import { createUI } from "./userInterfaceManager";
+import * as THREE from "three"
+
 import {
-	handleIncompatibilities,
-	updateBaseClothingVisibility,
-} from "./userInterfaceManager";
+	ANIMATIONS,
+	BASE_CATEGORIES,
+	CATEGORIES,
+	CATEGORY_RULES,
+	DEFAULT_ANIMATION,
+	SKIN_COLOR,
+	SPECIAL_MESHES,
+} from "./config.js"
+import * as state from "./state.js"
 
-let bilal, incompatibleItems, clothingCategories, clothingMap, mixer;
-let animations = [];
+let root = null
+let mixer = null
+let currentAction = null
+let currentClipName = null
+/** The looping pose a one-shot returns to when it finishes. */
+let restingClipName = DEFAULT_ANIMATION
 
-function playAnimation(animationIndex) {
-	const action = mixer.clipAction(animations[animationIndex]);
-	action.reset().play();
+const clips = new Map()
+const listeners = new Set()
+
+export function getRoot() {
+	return root
 }
 
-function crossfade(animationFrom, animationTo, duration = null) {
-	const fromAction = mixer.clipAction(animations[animationFrom]);
+export function getCurrentClip() {
+	return currentClipName
+}
 
-	const toAction = mixer.clipAction(animations[animationTo]);
+export function onPoseChange(fn) {
+	listeners.add(fn)
+	return () => listeners.delete(fn)
+}
 
-	// Calculate duration based on the length of the animations if not provided
-	if (!duration) {
-		duration =
-			Math.min(fromAction.getClip().duration, toAction.getClip().duration) / 2;
+/* ------------------------------------------------------------- building */
+
+function categoryOf(name) {
+	for (const [suffix, key] of CATEGORY_RULES) {
+		if (name.endsWith(suffix)) return key
 	}
-
-	// Enable smooth transitions at the start and end of the crossfade
-	fromAction.crossFadeTo(toAction, duration, true);
+	return null
 }
 
-function setupAnimationEventListeners() {
-	const sampleAnimationBtn = document.getElementById("sampleAnimationBtn");
-	let currentAnimation = 0;
-	let idleAnimation = 0;
-	playAnimation(idleAnimation);
-
-	sampleAnimationBtn.addEventListener("click", () => {
-		const nextAnimation = (currentAnimation + 1) % animations.length;
-		playAnimation(nextAnimation);
-		crossfade(currentAnimation, nextAnimation);
-		currentAnimation = nextAnimation;
-	});
-}
-
-function categorizeClothingItems(child) {
-	if (child.name.endsWith("_jacket")) {
-		return "jackets";
-	} else if (child.name.endsWith("_coverall")) {
-		return "coveralls";
-	} else if (child.name.endsWith("_pant")) {
-		return "pants";
-	} else if (child.name.endsWith("_bag")) {
-		return "bags";
-	} else if (child.name.endsWith("_hoodie")) {
-		return "hoodies";
-	} else if (child.name.endsWith("_tshirt")) {
-		return "tshirts";
-	} else if (child.name.endsWith("_mask")) {
-		return "masks";
-	} else if (child.name.endsWith("top_base")) {
-		return "baseTop";
-	} else if (child.name.endsWith("bottom_base")) {
-		return "baseBottom";
-	} else if (child.name.endsWith("base_boot__")) {
-		return "baseBoot";
-	}
-	return null;
-}
-
-function initializeClothingItemsVisibility(items, excludeIndex = -1) {
-	items.forEach((item, index) => {
-		if (index === excludeIndex) {
-			item.visible = true;
-		} else {
-			item.visible = false;
-		}
-	});
-
-	// Check for incompatibilities
-	if (excludeIndex >= 0) {
-		const selectedItem = items[excludeIndex];
-		handleIncompatibilities(selectedItem);
-	}
-
-	updateBaseClothingVisibility();
-}
-
-function initializeClothingCategoriesAndMaps(model) {
-	incompatibleItems = new Map([
-		["Jackets", ["Hoodies", "Coveralls", "Tshirt"]],
-		["Hoodies", ["Jackets", "Coveralls", "Base-Top", "Tshirt"]],
-		[
-			"Coveralls",
-			["Jackets", "Hoodies", "Base-Bottom", "Base-Top", "Pants", "Tshirt"],
-		],
-		["Pants", ["Base-Bottom", "Coveralls"]],
-
-		["Tshirt", ["Jackets", "Coveralls", "Hoodies", "Base-Top"]],
-		["Base-Bottom", ["Pants", "Coveralls"]],
-		["Base-Top", ["Jackets", "Coveralls", "Hoodies", "Tshirt"]],
-		// Add more incompatibilities as needed
-	]);
-
-	clothingCategories = {
-		jackets: [],
-		coveralls: [],
-		pants: [],
-		bags: [],
-		boots: [],
-		hoodies: [],
-		tshirts: [],
-		masks: [],
-		baseTop: [],
-		baseBottom: [],
-		baseBoot: [],
-	};
+function collectClothing(model) {
+	const byCategory = {}
+	for (const { key } of CATEGORIES) byCategory[key] = []
+	for (const key of BASE_CATEGORIES) byCategory[key] = []
 
 	model.traverse((child) => {
-		const category = categorizeClothingItems(child);
-		if (category) {
-			clothingCategories[category].push(child);
-		}
-	});
+		if (!child.isMesh) return
+		const key = categoryOf(child.name)
+		if (key) byCategory[key].push(child)
+	})
 
-	initializeClothingItemsVisibility(clothingCategories.jackets, 0);
-	initializeClothingItemsVisibility(clothingCategories.coveralls, -1);
-	initializeClothingItemsVisibility(clothingCategories.pants, 2);
-	initializeClothingItemsVisibility(clothingCategories.bags, 0);
-
-	initializeClothingItemsVisibility(clothingCategories.hoodies, -1);
-	initializeClothingItemsVisibility(clothingCategories.tshirts, -1);
-	initializeClothingItemsVisibility(clothingCategories.masks, -1);
-
-	clothingMap = new Map([
-		["Jackets", clothingCategories.jackets],
-		["Coveralls", clothingCategories.coveralls],
-		["Pants", clothingCategories.pants],
-		// ["Boots", clothingCategories.boots],
-		["Hoodies", clothingCategories.hoodies],
-		["Tshirt", clothingCategories.tshirts],
-		["Mask", clothingCategories.masks],
-		["Bags", clothingCategories.bags],
-		["Base-Top", clothingCategories.baseTop],
-		["Base-Bottom", clothingCategories.baseBottom],
-		["Base-Boot", clothingCategories.baseBoot],
-	]);
-
-	createUI(clothingMap);
+	// Stable, human order: 01_ before 02_ before 10_.
+	for (const list of Object.values(byCategory)) {
+		list.sort((a, b) => a.name.localeCompare(b.name, "en", { numeric: true }))
+	}
+	return byCategory
 }
 
-// function to load and process animations for the model
-function processAnimations(model) {
-	// Create an AnimationMixer instance and load the first animation clip
-	mixer = new THREE.AnimationMixer(model);
-}
-
-function processModel(model) {
-	model.position.y = -0.9;
-	model.position.z = -0.25;
-
+function prepareMaterials(model, { castShadow }) {
 	model.traverse((child) => {
-		if (child.isMesh) {
-			child.material.roughness = 0.9;
-			child.material.castShadow = true;
-			child.material.recieveShadow = true;
+		if (!child.isMesh) return
+
+		child.castShadow = castShadow
+		child.receiveShadow = castShadow
+		// Skinned meshes are culled against their bind-pose bounds, so an arm
+		// thrown wide by an animation can pop the whole garment out of view.
+		child.frustumCulled = false
+
+		const material = child.material
+		if (material) {
+			material.roughness = Math.min(material.roughness ?? 1, 0.9)
+			if (child.name === SPECIAL_MESHES.skin) {
+				material.color = new THREE.Color(SKIN_COLOR)
+			}
 		}
 
-		if (child.name === "Underwear_Bilal_Skin") {
-			child.material.color = new THREE.Color("#6c5238");
+		if (SPECIAL_MESHES.hidden.includes(child.name)) {
+			child.visible = false
+			// Not just invisible: it must never be revived by the outfit
+			// projection or picked up by a raycast.
+			child.layers.disableAll()
 		}
-		if (child.name === "Cube") {
-			child.material.visible = false;
-		}
-	});
-
-	scene.add(model);
+	})
 }
 
-function mountCharacter(url, callback) {
-	loader.load(url, (gltf) => {
-		bilal = gltf.scene;
-		animations.push(
-			...[
-				gltf.animations[10],
-				gltf.animations[9],
-				gltf.animations[13],
-				gltf.animations[12],
-				gltf.animations[0],
-				gltf.animations[2],
-			]
-		);
-		initializeClothingCategoriesAndMaps(bilal);
-		processModel(bilal);
-		processAnimations(bilal);
-		setupAnimationEventListeners();
-		callback();
-	});
+/**
+ * Turn a loaded glTF into a dressed, animated character.
+ * Returns the model root; visibility from here on belongs to state.js.
+ */
+export function buildCharacter(gltf, { castShadow = true } = {}) {
+	root = gltf.scene
+	root.position.set(0, -0.9, -0.25)
+
+	prepareMaterials(root, { castShadow })
+
+	mixer = new THREE.AnimationMixer(root)
+	mixer.addEventListener("finished", onActionFinished)
+	clips.clear()
+	for (const clip of gltf.animations) clips.set(clip.name, clip)
+
+	state.registerItems(collectClothing(root))
+	playPose(DEFAULT_ANIMATION, 0)
+
+	return root
 }
 
-export {
-	mountCharacter,
-	bilal,
-	mixer,
-	clothingMap,
-	incompatibleItems,
-	clothingCategories,
-};
+/**
+ * World-space Y of the soles.
+ *
+ * Box3.setFromObject would include the hidden authoring cube — which is ten
+ * units tall and would put the "floor" nowhere near the feet — and it ignores
+ * `.visible` entirely, so the bounds are gathered by hand over garment meshes.
+ */
+export function getFeetY() {
+	if (!root) return -0.9
+	const box = new THREE.Box3()
+	const meshBox = new THREE.Box3()
+	root.updateWorldMatrix(true, true)
+
+	root.traverse((child) => {
+		if (!child.isMesh) return
+		if (SPECIAL_MESHES.hidden.includes(child.name)) return
+		if (!categoryOf(child.name)) return
+		if (!child.geometry.boundingBox) child.geometry.computeBoundingBox()
+		meshBox.copy(child.geometry.boundingBox).applyMatrix4(child.matrixWorld)
+		box.union(meshBox)
+	})
+
+	return box.isEmpty() ? root.position.y : box.min.y
+}
+
+/* ----------------------------------------------------------- animation */
+
+const isLooping = (name) =>
+	ANIMATIONS.find((a) => a.clip === name)?.loop !== false
+
+/** Clips the model actually shipped with, in config order. */
+export function availablePoses() {
+	return ANIMATIONS.filter((a) => clips.has(a.clip))
+}
+
+export function playPose(name, fade = 0.35) {
+	const clip = clips.get(name)
+	if (!clip || !mixer) return false
+	if (name === currentClipName) return true
+
+	const next = mixer.clipAction(clip)
+	const looping = isLooping(name)
+
+	next.reset()
+	next.setLoop(looping ? THREE.LoopRepeat : THREE.LoopOnce, Infinity)
+	next.clampWhenFinished = !looping
+	next.enabled = true
+	next.setEffectiveWeight(1)
+	next.fadeIn(fade).play()
+
+	if (currentAction && currentAction !== next) currentAction.fadeOut(fade)
+
+	currentAction = next
+	currentClipName = name
+	if (looping) restingClipName = name
+
+	for (const fn of listeners) fn(name)
+	return true
+}
+
+/** Advance to the next pose in the picker; wraps. */
+export function cyclePose(delta = 1) {
+	const poses = availablePoses()
+	if (!poses.length) return
+	const at = poses.findIndex((p) => p.clip === currentClipName)
+	const next = (((at + delta) % poses.length) + poses.length) % poses.length
+	playPose(poses[next].clip)
+}
+
+/**
+ * A one-shot that has played out leaves the character frozen mid-gesture, so
+ * settle back into the last looping pose instead.
+ */
+function onActionFinished(event) {
+	if (event.action !== currentAction) return
+	if (isLooping(currentClipName)) return
+	currentClipName = null
+	playPose(restingClipName, 0.4)
+}
+
+export function update(delta) {
+	if (mixer) mixer.update(delta)
+}
+
+/* -------------------------------------------------------------- cleanup */
+
+export function disposeCharacter() {
+	if (!root) return
+	mixer?.stopAllAction()
+	mixer?.removeEventListener("finished", onActionFinished)
+	mixer = null
+	currentAction = null
+	currentClipName = null
+	clips.clear()
+	root = null
+}
