@@ -280,7 +280,12 @@ body.is-capturing .toasts {
 	font: 400 var(--fs-lead) / 1.3 var(--f-display);
 	font-style: italic;
 	color: var(--t-1);
-	text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+	/* A tight dark edge plus a soft halo. The wide blur alone was enough over the
+	   dusk ocean but not over the dawn preset's pale sand, where bone-on-bone
+	   left the line barely readable. */
+	text-shadow:
+		0 1px 2px rgba(0, 0, 0, 0.6),
+		0 2px 14px rgba(0, 0, 0, 0.7);
 	transition:
 		opacity 300ms var(--e-entrance),
 		transform var(--d-3) var(--e-inout);
@@ -897,6 +902,10 @@ body:not(.panel-open) .panel__tab {
 	background: transparent;
 	border: none;
 	color: var(--t-2);
+	/* The console has no surface behind it by design, so the glyphs have to
+	   carry their own separation — they sit over the dark ocean at dusk and over
+	   pale sand at dawn. */
+	filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.55));
 	border-radius: var(--r-0);
 	transition:
 		color var(--d-1) linear,
@@ -931,7 +940,7 @@ body:not(.panel-open) .panel__tab {
 	width: 1px;
 	height: 20px;
 	margin: 0 18px 0 20px;
-	background: var(--line-1);
+	background: var(--line-2);
 }
 
 .console__slider {
