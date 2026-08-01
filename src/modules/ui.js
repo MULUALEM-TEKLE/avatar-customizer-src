@@ -622,8 +622,13 @@ async function shareOutfit() {
 	)
 }
 
-function nextPose() {
-	character.cyclePose(1)
+/**
+ * The only way to change pose. The keyboard used to call character.cyclePose
+ * directly, so pressing A changed the pose silently while the button announced
+ * it — ten unnamed clips with no feedback is not a feature.
+ */
+export function cyclePose(delta = 1) {
+	character.cyclePose(delta)
 	const clip = character.getCurrentClip()
 	const label = ANIMATIONS.find((a) => a.clip === clip)?.label ?? clip
 	toast(`POSE · ${label}`, { icon: "sports_martial_arts", duration: 1600 })
@@ -730,7 +735,7 @@ export function mountUI(options = {}) {
 	els.volume.addEventListener("input", (event) => {
 		audio.setVolume(Number(event.target.value) / 100)
 	})
-	document.getElementById("pose").addEventListener("click", nextPose)
+	document.getElementById("pose").addEventListener("click", () => cyclePose(1))
 	document.getElementById("shuffle").addEventListener("click", () => shuffleOutfit())
 	document.getElementById("reset-view").addEventListener("click", () => {
 		controls.reset()

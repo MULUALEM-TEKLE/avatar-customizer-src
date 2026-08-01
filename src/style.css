@@ -746,8 +746,10 @@ body:not(.panel-open) .panel__tab {
 }
 
 .seg__item {
-	display: grid;
-	place-items: center;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 3px;
 	height: 28px;
 	padding: 0 13px;
 	border: none;
@@ -1520,7 +1522,11 @@ kbd {
 		scroll-snap-align: center;
 	}
 
-	.panel__tabs .seg__item {
+	/* Needs to outrank `.seg .option + .option .seg__item`, which would otherwise
+	   draw a divider between every tab — this strip is a row of labels, not a
+	   segmented track. */
+	.panel__tabs .option .seg__item,
+	.panel__tabs .option + .option .seg__item {
 		height: 40px;
 		padding: 0 14px;
 		box-shadow: none;
@@ -1528,7 +1534,8 @@ kbd {
 		font-size: var(--fs-label);
 	}
 
-	.panel__tabs .option__input:checked + .seg__item {
+	.panel__tabs .option__input:checked + .seg__item,
+	.panel__tabs .option + .option .option__input:checked + .seg__item {
 		color: var(--t-1);
 		box-shadow: inset 0 -1px 0 0 var(--line-3);
 	}

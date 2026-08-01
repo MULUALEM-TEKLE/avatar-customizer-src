@@ -1,6 +1,5 @@
 import * as controls from "./controls.js"
 import * as audio from "./audio.js"
-import * as character from "./character.js"
 import * as ui from "./ui.js"
 import { announce } from "./notify.js"
 
@@ -77,7 +76,7 @@ export const SHORTCUTS = [
 		label: "Next pose",
 		hint: "Shift+A for the previous one",
 		match: (k) => k.toLowerCase() === "a",
-		run: (event) => character.cyclePose(event.shiftKey ? -1 : 1),
+		run: (event) => ui.cyclePose(event.shiftKey ? -1 : 1),
 	},
 	{
 		keys: ["S"],
