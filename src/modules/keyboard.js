@@ -16,8 +16,10 @@ import { announce } from "./notify.js"
  * shortcut in the app for the rest of the session. Space is handled separately
  * below, because on a focused button it has to keep activating the button.
  */
-const TEXT_ENTRY =
-	"input:not([type=radio]):not([type=button]), select, textarea, [contenteditable]"
+const TEXT_ENTRY = "input[type=text], input[type=search], input[type=number], input[type=email], input[type=url], input[type=password], select, textarea, [contenteditable]"
+
+/** Controls that own the arrow keys but not the letter keys. */
+const ARROW_CONSUMERS = "input[type=range], select"
 
 const isCanvas = () => document.activeElement?.id === "webgl"
 
@@ -151,6 +153,12 @@ function onKeyDown(event) {
 
 	const active = document.activeElement
 	const typing = Boolean(active && active.matches?.(TEXT_ENTRY))
+	// The volume slider consumes arrows and Home/End; it has no claim on letters.
+	const arrowsOwned =
+		["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(
+			event.key,
+		) && Boolean(active && active.matches?.(ARROW_CONSUMERS))
+	if (arrowsOwned) return
 	// Space and Enter belong to whatever is focused; stealing Space from a
 	// focused button would break the button.
 	const activatesFocus =

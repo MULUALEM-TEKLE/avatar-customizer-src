@@ -119,6 +119,9 @@ export async function capture({
 	const { width, height } = targetSize(ratio)
 
 	document.body.classList.add("is-capturing")
+	// The PNG encode is async; without this the live loop keeps drawing at the
+	// export size and aspect into a canvas whose CSS box is still the viewport.
+	deps.setPaused?.(true)
 
 	try {
 		if (transparent) {
@@ -127,8 +130,9 @@ export async function capture({
 			renderer.setClearAlpha(0)
 		}
 
-		renderer.setPixelRatio(1)
-		renderer.setSize(width, height, false)
+		// setRenderSize, not renderer.setSize: on the High tier the composer owns
+		// the render targets and would otherwise stay at viewport resolution.
+		deps.setRenderSize(width, height, 1)
 		camera.aspect = width / height
 		camera.updateProjectionMatrix()
 
@@ -143,16 +147,16 @@ export async function capture({
 		if (backdrop) backdrop.visible = previous.backdropVisible
 		scene.background = previous.background
 		renderer.setClearAlpha(previous.clearAlpha)
-		renderer.setPixelRatio(previous.pixelRatio)
-		renderer.setSize(
+		deps.setRenderSize(
 			previous.width / previous.pixelRatio,
 			previous.height / previous.pixelRatio,
-			true,
+			previous.pixelRatio,
 		)
 		canvas.style.width = previous.cssWidth
 		canvas.style.height = previous.cssHeight
 		camera.aspect = previous.aspect
 		camera.updateProjectionMatrix()
+		deps.setPaused?.(false)
 		document.body.classList.remove("is-capturing")
 		render()
 	}

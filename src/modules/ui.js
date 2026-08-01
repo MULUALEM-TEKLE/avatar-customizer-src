@@ -33,10 +33,17 @@ const els = {}
 const chipsByCategory = new Map()
 const tabsByCategory = new Map()
 
-let hooks = { onOutfitChange: () => {}, onSceneChange: () => {} }
+let hooks = { onOutfitChange: () => {}, onSceneChange: () => {}, onTierChange: () => {} }
 let previousSnapshot = null
 let activeCategory = CATEGORIES[0].key
 let activeLook = null
+/**
+ * Only a direct pick of one garment can produce a "removed because it clips"
+ * message. A Look or a Shuffle replaces the whole outfit, and a replacement that
+ * happens to differ in exactly one worn slot would otherwise be reported as a
+ * conflict the user never caused.
+ */
+let expectDirectSelection = false
 let exportAspect = "screen"
 let staggered = false
 
@@ -199,6 +206,7 @@ function buildArrow(direction, category) {
 	button.appendChild(glyph)
 
 	button.addEventListener("click", () => {
+		expectDirectSelection = true
 		state.step(category.key, direction === "prev" ? -1 : 1)
 		audio.playClick()
 	})
@@ -391,7 +399,8 @@ function paint(snapshot) {
 	}
 
 	paintCaption(snapshot)
-	reportRemovals(snapshot)
+	if (expectDirectSelection) reportRemovals(snapshot)
+	expectDirectSelection = false
 	previousSnapshot = snapshot
 
 	// Any change clears the "wearing a named look" badge. The preset handlers
@@ -716,6 +725,7 @@ export function mountUI(options = {}) {
 	els.sections.addEventListener("change", (event) => {
 		const input = event.target
 		if (!input.matches(".items .option__input")) return
+		expectDirectSelection = true
 		state.select(input.name, Number(input.dataset.index))
 		audio.playClick()
 	})

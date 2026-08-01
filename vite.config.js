@@ -3,7 +3,10 @@ const isCodeSandbox = 'SANDBOX_URL' in process.env || 'CODESANDBOX_HOST' in proc
 export default {
     root: 'src/',
     publicDir: '../static/',
-    base: './',
+    // Root-absolute, because every runtime asset URL in config.js is
+    // root-absolute. './' would advertise a relocatable build that 404s on
+    // every model, thumbnail and audio file outside the domain root.
+    base: '/',
     server:
     {
         host: true,

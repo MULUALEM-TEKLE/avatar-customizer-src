@@ -96,16 +96,39 @@ export function step(key, delta) {
 	select(key, next - 1)
 }
 
+/**
+ * Wear a whole outfit at once.
+ *
+ * Conflicts are enforced here too. This is the path a share link, a restored
+ * session and a preset all take, so without it a hand-edited URL could dress the
+ * avatar in two intersecting garments — and that broken state would then be
+ * re-serialized straight back into localStorage and the address bar.
+ * Earlier categories win, which makes the resolution order deterministic.
+ */
 export function applyOutfit(outfit) {
 	batch(() => {
+		const worn = new Set()
 		for (const { key } of CATEGORIES) {
 			const wanted = outfit[key]
 			const list = getItems(key)
 			const valid =
 				Number.isInteger(wanted) && wanted >= 0 && wanted < list.length
-			selection.set(key, valid ? wanted : NONE)
+			const blocked =
+				valid && (CONFLICTS[key] ?? []).some((other) => worn.has(other))
+
+			selection.set(key, valid && !blocked ? wanted : NONE)
+			if (valid && !blocked) worn.add(key)
 		}
 	})
+}
+
+/** True when nothing worn clips through anything else worn. */
+export function hasConflict() {
+	for (const [key, others] of Object.entries(CONFLICTS)) {
+		if (selection.get(key) === NONE) continue
+		if (others.some((other) => selection.get(other) !== NONE)) return true
+	}
+	return false
 }
 
 export function applyDefaults() {

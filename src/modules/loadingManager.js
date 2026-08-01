@@ -33,10 +33,13 @@ export function disposeLoaders() {
 }
 
 export class AssetError extends Error {
-	constructor(url, cause) {
-		super(`Could not load ${url}: ${cause}`)
+	constructor(url, reason, cause) {
+		super(`Could not load ${url}: ${reason}`)
 		this.name = "AssetError"
 		this.url = url
+		// Kept so a network drop stays distinguishable from a corrupt file when
+		// this reaches a log.
+		this.cause = cause
 	}
 }
 
@@ -50,36 +53,47 @@ async function fetchWithProgress(url, onProgress, expectedBytes = 0) {
 	try {
 		response = await fetch(url)
 	} catch (cause) {
-		throw new AssetError(url, "network unreachable")
+		throw new AssetError(url, "network unreachable", cause)
 	}
 	if (!response.ok) throw new AssetError(url, `HTTP ${response.status}`)
 
 	const declared = Number(response.headers.get("content-length")) || 0
 	const total = declared || expectedBytes
 
-	if (!response.body) return new Uint8Array(await response.arrayBuffer()).buffer
+	// Everything below can also fail mid-transfer. Left unwrapped, a dropped
+	// connection surfaced as a raw TypeError and the caller reported a perfectly
+	// good file as corrupt.
+	try {
+		if (!response.body) {
+			return new Uint8Array(await response.arrayBuffer()).buffer
+		}
 
-	const reader = response.body.getReader()
-	const chunks = []
-	let loaded = 0
+		const reader = response.body.getReader()
+		const chunks = []
+		let loaded = 0
 
-	for (;;) {
-		const { done, value } = await reader.read()
-		if (done) break
-		chunks.push(value)
-		loaded += value.length
-		// Without a total, approach 95% asymptotically instead of faking precision.
-		onProgress?.(total ? Math.min(loaded / total, 1) : 1 - 1 / (1 + loaded / 4e5))
+		for (;;) {
+			const { done, value } = await reader.read()
+			if (done) break
+			chunks.push(value)
+			loaded += value.length
+			// Without a total, approach 95% asymptotically rather than fake precision.
+			onProgress?.(
+				total ? Math.min(loaded / total, 1) : 1 - 1 / (1 + loaded / 4e5),
+			)
+		}
+		onProgress?.(1)
+
+		const merged = new Uint8Array(loaded)
+		let offset = 0
+		for (const chunk of chunks) {
+			merged.set(chunk, offset)
+			offset += chunk.length
+		}
+		return merged.buffer
+	} catch (cause) {
+		throw new AssetError(url, "the transfer was interrupted", cause)
 	}
-	onProgress?.(1)
-
-	const merged = new Uint8Array(loaded)
-	let offset = 0
-	for (const chunk of chunks) {
-		merged.set(chunk, offset)
-		offset += chunk.length
-	}
-	return merged.buffer
 }
 
 export async function loadGLTF(url, { onProgress, expectedBytes } = {}) {
@@ -89,7 +103,8 @@ export async function loadGLTF(url, { onProgress, expectedBytes } = {}) {
 			buffer,
 			"",
 			resolve,
-			(cause) => reject(new AssetError(url, cause?.message ?? "malformed glTF")),
+			(cause) =>
+				reject(new AssetError(url, "the file could not be read", cause)),
 		)
 	})
 }
@@ -100,7 +115,7 @@ export function loadHDR(url) {
 			url,
 			resolve,
 			undefined,
-			() => reject(new AssetError(url, "could not decode HDR")),
+			(cause) => reject(new AssetError(url, "could not decode HDR", cause)),
 		)
 	})
 }

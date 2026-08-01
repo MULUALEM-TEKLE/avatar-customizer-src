@@ -138,6 +138,18 @@ run("a malformed share code degrades to a wearable outfit", () => {
 		const i = state.getIndex(key)
 		assert.ok(i === -1 || (i >= 0 && i < state.getItems(key).length))
 	}
+	assert.equal(state.hasConflict(), false)
+})
+
+run("a hand-edited share link cannot dress two clipping garments", () => {
+	// hoodies=0 and jackets=0 together, which CONFLICTS forbids.
+	state.applyOutfit({ hoodies: 0, jackets: 0, coveralls: 0, tshirts: 0 })
+	assert.equal(state.hasConflict(), false)
+	// Earlier categories win, deterministically.
+	assert.equal(state.getIndex("hoodies"), 0)
+	assert.equal(state.getIndex("jackets"), -1)
+	assert.equal(state.getIndex("coveralls"), -1)
+	assert.equal(state.getIndex("tshirts"), -1)
 })
 
 run("every preset resolves to valid, non-conflicting items", () => {
@@ -152,6 +164,7 @@ run("every preset resolves to valid, non-conflicting items", () => {
 					`either the index is out of range or the outfit conflicts with itself`,
 			)
 		}
+		assert.equal(state.hasConflict(), false, `preset ${preset.id} conflicts`)
 	}
 })
 
@@ -163,6 +176,10 @@ run("randomize never produces a conflicting outfit", () => {
 		state.randomize(rand)
 		const worn = CATEGORIES.filter(({ key }) => state.getIndex(key) !== -1)
 		assert.ok(worn.length > 0, "randomize produced an entirely bare avatar")
+		// This is the assertion the test name actually promises. The previous
+		// version only counted worn items, so it stayed green for exactly the
+		// class of bug it claimed to rule out.
+		assert.equal(state.hasConflict(), false, "randomize produced a conflict")
 	}
 })
 

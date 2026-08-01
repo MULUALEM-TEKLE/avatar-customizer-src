@@ -55,12 +55,25 @@ export function buildURL({ outfit, pose, scene }) {
 	return `${location.origin}${location.pathname}#${params}`
 }
 
+let urlTimer = null
+
 /**
  * Keep the address bar in step without pushing history entries — otherwise every
  * garment swap becomes a Back-button stop.
+ *
+ * Debounced for the same reason `save` is: holding an arrow key through five
+ * hoodies would otherwise issue five synchronous history writes, and Safari
+ * throws once a page exceeds roughly a hundred of them in thirty seconds.
  */
 export function syncURL(session) {
-	history.replaceState(null, "", buildURL(session))
+	clearTimeout(urlTimer)
+	urlTimer = setTimeout(() => {
+		try {
+			history.replaceState(null, "", buildURL(session))
+		} catch {
+			// Rate-limited. The outfit is still saved; only the address bar lags.
+		}
+	}, WRITE_DELAY)
 }
 
 export function clear() {

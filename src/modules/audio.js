@@ -22,7 +22,8 @@ const RELEASE = 3.5 // slow fall, so the water swells rather than flickers
 let context = null
 let element = null
 let sourceNode = null
-let gainNode = null
+let musicGain = null
+let masterGain = null
 let analyser = null
 let frequencyData = null
 let clickBuffer = null
@@ -53,17 +54,26 @@ function ensureContext() {
 		emit()
 	})
 
+	// music -> musicGain -> analyser -> masterGain -> out
+	//                        clicks -> sfxGain -----^
+	// Two stages on purpose: mute has to silence the UI sounds as well as the
+	// music, but the analyser that drives the water must only ever see the music,
+	// or every click would punch a spike through the waves.
 	sourceNode = context.createMediaElementSource(element)
-	gainNode = context.createGain()
-	gainNode.gain.value = muted ? 0 : volume
+	musicGain = context.createGain()
+	musicGain.gain.value = volume
+	masterGain = context.createGain()
+	masterGain.gain.value = muted ? 0 : 1
+
 	analyser = context.createAnalyser()
 	analyser.fftSize = FFT_SIZE
 	analyser.smoothingTimeConstant = 0.75
 	frequencyData = new Uint8Array(analyser.frequencyBinCount)
 
-	sourceNode.connect(gainNode)
-	gainNode.connect(analyser)
-	analyser.connect(context.destination)
+	sourceNode.connect(musicGain)
+	musicGain.connect(analyser)
+	analyser.connect(masterGain)
+	masterGain.connect(context.destination)
 
 	ready = true
 	return context
@@ -135,9 +145,13 @@ export const previous = () => selectTrack(trackIndex - 1)
 export function setVolume(value) {
 	volume = Math.min(Math.max(value, 0), 1)
 	muted = volume === 0
-	if (gainNode) gainNode.gain.value = volume
+	if (musicGain) musicGain.gain.value = volume
+	if (masterGain) masterGain.gain.value = muted ? 0 : 1
 	emit()
 }
+
+/** Below this, unmuting would "succeed" and still produce silence. */
+const MIN_AUDIBLE = 0.08
 
 export function getVolume() {
 	return volume
@@ -145,7 +159,12 @@ export function getVolume() {
 
 export function toggleMute() {
 	muted = !muted
-	if (gainNode) gainNode.gain.value = muted ? 0 : volume
+	// setVolume derives `muted` from the volume, so a slider dragged to zero
+	// leaves muted=true AND volume=0; flipping the flag alone would report
+	// "unmuted" and play nothing.
+	if (!muted && volume < MIN_AUDIBLE) volume = 0.3
+	if (musicGain) musicGain.gain.value = volume
+	if (masterGain) masterGain.gain.value = muted ? 0 : 1
 	emit()
 	return muted
 }
@@ -215,7 +234,9 @@ export function playClick() {
 		gain.gain.value = 0.35
 		source.buffer = buffer
 		source.connect(gain)
-		gain.connect(context.destination)
+		// Into the master gain, past the analyser: muted means silent, and a
+		// click never shows up in the water.
+		gain.connect(masterGain ?? context.destination)
 		source.start()
 	})
 }

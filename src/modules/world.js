@@ -143,13 +143,22 @@ export function applyEnvMap(hdrTexture) {
 	}
 }
 
-/** Stand-in for the low tier, which never downloads the HDR at all. */
+/**
+ * Stand-in for the low tier, which never downloads the HDR at all — and the
+ * fallback when the download fails on a tier that wanted one. Its colours come
+ * from the preset, so switching to it does not break the mood.
+ */
 function useHemisphereLight() {
 	if (hemi) return
 	hemi = new THREE.HemisphereLight(LIVE.skyTop, LIVE.horizon, 0.55)
 	hemi.color = LIVE.skyTop
 	hemi.groundColor = LIVE.horizon
 	scene.add(hemi)
+}
+
+/** Called when the HDR could not be fetched, so the scene keeps an ambient term. */
+export function useFallbackAmbient() {
+	if (!scene.environment) useHemisphereLight()
 }
 
 /* ------------------------------------------------------------- backdrop */
@@ -449,6 +458,18 @@ export function currentTier() {
 export function render() {
 	if (composer) composer.render()
 	else renderer.render(scene, camera)
+}
+
+/**
+ * Photo mode drives the renderer to an export resolution directly, so the
+ * composer's render targets have to follow. Without this every High-tier export
+ * was a viewport-resolution render stretched up to 2048px.
+ */
+export function setRenderSize(width, height, pixelRatio) {
+	renderer.setPixelRatio(pixelRatio)
+	renderer.setSize(width, height, false)
+	composer?.setPixelRatio(pixelRatio)
+	composer?.setSize(width, height)
 }
 
 export function updateWorld(elapsed) {

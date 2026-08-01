@@ -101,11 +101,16 @@ async function boot() {
 		camera: world.camera,
 		backdrop: world.backdrop,
 		render: world.render,
+		setRenderSize: world.setRenderSize,
+		setPaused: (value) => {
+			paused = value
+		},
 	})
 
 	mountUI({
 		onSceneChange: persistSession,
-		onOutfitChange: persistSession,
+		// Outfit changes already reach persistSession through the module-scope
+		// state subscriber below; wiring it here too doubled every write.
 		onTierChange: setTier,
 	})
 	setQualityLabel(currentTierName)
@@ -150,11 +155,7 @@ async function boot() {
 async function streamBackdrop({ feetY, tier }) {
 	environment.mountEnvironment({ floorHeight: feetY })
 
-	if (tier.ibl === "hdr") {
-		loadHDR(ASSETS.envMap)
-			.then((texture) => world.applyEnvMap(texture))
-			.catch(() => announce("Scene lighting could not be loaded."))
-	}
+	ensureEnvMap()
 
 	try {
 		const gltf = await loadGLTF(ASSETS.environment, {
@@ -166,13 +167,36 @@ async function streamBackdrop({ feetY, tier }) {
 	}
 }
 
+let envMapRequested = false
+
+/**
+ * Fetch the HDR the first time a tier actually wants it.
+ *
+ * It used to be requested once, gated on the boot tier, so a session that
+ * started on Low and was promoted by the frame timer kept the hemisphere
+ * stand-in and a null `scene.environment` forever. And when the fetch failed
+ * there was no ambient term at all on medium/high — the character went black
+ * on one side with only an sr-only announcement to explain it.
+ */
+function ensureEnvMap() {
+	if (envMapRequested) return
+	if (world.currentTier().ibl !== "hdr") return
+	envMapRequested = true
+
+	loadHDR(ASSETS.envMap)
+		.then((texture) => world.applyEnvMap(texture))
+		.catch(() => {
+			world.useFallbackAmbient()
+			announce("Scene lighting could not be loaded; using a simpler light.")
+		})
+}
+
 function isWebGLAvailable() {
 	try {
 		const probe = document.createElement("canvas")
-		return Boolean(
-			window.WebGLRenderingContext &&
-				(probe.getContext("webgl2") || probe.getContext("webgl")),
-		)
+		// three r185 requests "webgl2" and nothing else, so accepting a WebGL1
+		// context here would green-light a browser the renderer then throws on.
+		return Boolean(window.WebGL2RenderingContext && probe.getContext("webgl2"))
 	} catch {
 		return false
 	}
@@ -230,15 +254,16 @@ function sampleFrameCost(deltaMs) {
 	const median = frameSamples.slice(30).sort((a, b) => a - b)[60]
 	const index = TIER_ORDER.indexOf(currentTierName)
 	if (median > 22 && index > 0) {
-		currentTierName = world.applyTier(TIER_ORDER[index - 1])
+		applyTier(TIER_ORDER[index - 1])
 	} else if (median < 10 && index < TIER_ORDER.length - 1) {
-		currentTierName = world.applyTier(TIER_ORDER[index + 1])
+		applyTier(TIER_ORDER[index + 1])
 	}
 	tierSettled = true
 }
 
 function tick() {
 	requestAnimationFrame(tick)
+	if (paused) return
 
 	timer.update()
 	const delta = timer.getDelta()
@@ -264,6 +289,7 @@ function tick() {
 }
 
 let looping = false
+let paused = false
 
 function startLoop() {
 	if (looping) return
@@ -279,10 +305,36 @@ export function getCurrentTierName() {
 	return currentTierName
 }
 
-export function setTier(name) {
-	tierSettled = true // an explicit choice ends the automatic correction
+/**
+ * The single place the tier changes. The automatic tuner used to write
+ * `currentTierName` without touching the Quality control, which left the radio
+ * showing the boot tier — and because the stale radio was still `checked`,
+ * clicking the tier you were actually on fired no `change` event at all, so
+ * there was no way back.
+ */
+function applyTier(name) {
 	currentTierName = world.applyTier(name)
+	setQualityLabel(currentTierName)
+	// Moving up into a tier that wants image-based lighting has to go and fetch
+	// it; the HDR is only requested once at boot, on the boot tier.
+	ensureEnvMap()
 	return currentTierName
 }
 
-boot()
+export function setTier(name) {
+	tierSettled = true // an explicit choice ends the automatic correction
+	return applyTier(name)
+}
+
+boot().catch((error) => {
+	// Without this an unexpected throw leaves the loading overlay frozen and the
+	// whole shell inert — a dead page with no explanation.
+	console.error(error)
+	loadingScreen.fail("Something went wrong.")
+	fatal({
+		title: "Something went wrong",
+		detail:
+			"The scene could not be prepared. Reloading usually clears it; if it keeps happening, try another browser.",
+		actionLabel: "Reload",
+	})
+})

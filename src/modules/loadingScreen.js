@@ -89,6 +89,9 @@ export function dismiss() {
 			if (done) return
 			done = true
 			root.remove()
+			// Drop the references too, or a late progress report from a slow
+			// background asset writes into detached nodes and silently succeeds.
+			root = fill = percent = label = bytes = statusText = null
 			resolve()
 		}
 		// The plate and the masthead animate too, and their transitionend bubbles
