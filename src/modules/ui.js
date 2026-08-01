@@ -253,7 +253,7 @@ function buildLooks() {
 	row.className = "looks"
 
 	const label = document.createElement("h2")
-	label.className = "section__label looks__label"
+	label.className = "section__label"
 	label.textContent = "Looks"
 
 	const list = document.createElement("div")
