@@ -65,6 +65,34 @@ Every item in §1 (critical bugs), plus §2 (assets), §3 (runtime), §4 (looks)
   is why the ridge line crawled.
 - **Toast icons were read aloud by screen readers** as their ligature names.
 
+### Found by adversarial review (41 agents, two rounds; 23 findings survived refutation)
+
+- **Fog was applied in the wrong colour space.** three uploads `fogColor` already
+  encoded in the renderer's *output* space when drawing to the canvas, which is why its own
+  shaders order the chunks tone-map → colour-space → fog. All three backdrop shaders had fog
+  first, so at dusk it came out ~2.9× too bright and the ridge sat against the sky as a pale band
+  exactly where it should have dissolved into it — and because the composer path uses the working
+  space instead, the seam appeared and disappeared with the Quality setting.
+- **Every single-select control claimed a keyboard model it did not implement** — `listbox`/
+  `option` and `radiogroup`/`radio` with no arrow keys and no roving tabindex. Now native radios.
+- **`applyOutfit` skipped the conflict rules**, so a share link could dress the avatar in two
+  intersecting garments and write that back to storage. Two self-checks that named
+  conflict-freedom asserted something else, so `pnpm check` stayed green on exactly that bug.
+- **The automatic tier tuner never updated the Quality control**, leaving a stale `checked` radio
+  — and clicking the tier you were actually on fired no `change` event.
+- **`boot()` had no `.catch()`**: any unexpected throw left a frozen overlay over an inert shell.
+- **The WebGL probe accepted WebGL 1**, which r185 cannot use.
+- **High-tier exports were viewport-resolution renders upscaled to 2048px** — `capture()` resized
+  the renderer but not the composer.
+- **The error copy was inverted**: once every failure became an `AssetError`, a corrupt file was
+  told to check its connection and a dropped connection was told the file was damaged.
+- **Segment selection and focus rings were eaten by the divider rule** — Quality defaults to the
+  middle option, so the control shipped showing no selection at all.
+- **Chip focus rings were clipped** by the scroller's content box, entirely so on the first chip.
+- Plus: muting left the UI click sounds audible, a focused slider swallowed every letter shortcut,
+  `syncURL` wrote history synchronously on every change (Safari throws past ~100 in 30s),
+  `persistSession` was subscribed twice, and `--level` was written to `<html>` every frame.
+
 ## Where this went further than the plan
 
 The plan's §9 said no new features. The brief for this branch was the opposite, so:
@@ -105,13 +133,24 @@ The plan's §9 said no new features. The brief for this branch was the opposite,
 
 ## Verification
 
-- `pnpm check` — 15 assertions over conflicts, base layers, share codes, presets and randomize.
-  Runs under plain node in a fraction of a second; `state.js` has no three.js import precisely so
-  that it can.
+- `pnpm check` — 16 assertions over conflicts, base layers, share codes, presets and randomize,
+  including that a hand-edited share link cannot produce a conflicting outfit. Runs under plain
+  node in a fraction of a second; `state.js` has no three.js import precisely so that it can.
 - `pnpm build` — clean.
-- Driven headlessly over CDP at 1440×900, 1000×640 and 390×844: zero console errors or warnings;
-  share links restore; conflicts resolve and announce; the phone console fits with every target at
-  44×44; capture round-trips and restores the canvas.
+- Driven headlessly over CDP (no puppeteer; a ~120-line driver over the DevTools protocol) at
+  1440×900, 1280×800, 1000×640 and 390×844. Zero console errors or warnings. Verified by
+  measurement rather than by eye:
+  - Share links restore outfit, pose and scene; conflicts resolve and name what was removed.
+  - Preset crossfades land on the exact target hex and keep instance identity, so bound uniforms
+    keep tracking.
+  - Feet stay 6mm off the floor across the whole idle clip, and no pose exceeds the frame
+    (the tallest, Flying, peaks at y=1.23 against a half-height of 1.28).
+  - Focus rings render on chips, segments and Look buttons, using *trusted* key events so
+    `:focus-visible` behaves as it does for a real user.
+  - Capture returns 2048px and restores the canvas exactly; the High-tier export grew from
+    5.8MB to 7.2MB once the composer was resized too, which is the upscaling bug leaving.
+  - Failure paths: a 404 on the character shows a modal `<dialog>` with a Reload button and
+    focus on it; a 404 on the scenery or the HDR leaves the app fully usable and says so.
 
 ## Left deliberately
 
