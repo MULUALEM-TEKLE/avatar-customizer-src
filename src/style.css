@@ -389,16 +389,18 @@ body.is-capturing .toasts {
 	color: var(--t-2);
 	z-index: 101;
 	opacity: 0;
-	pointer-events: none;
+	/* visibility, not just opacity: an opacity-0 button is still in the tab order
+	   and still in the accessibility tree. */
+	visibility: hidden;
 	transition:
 		opacity var(--d-2) var(--e-out),
-		transform var(--d-2) var(--e-out);
+		visibility 0s linear var(--d-2);
 }
 
 body:not(.panel-open) .panel__tab {
 	opacity: 1;
-	pointer-events: auto;
-	transition-delay: 180ms;
+	visibility: visible;
+	transition-delay: 180ms, 0s;
 }
 
 .panel__tab:hover {
@@ -501,16 +503,38 @@ body:not(.panel-open) .panel__tab {
 
 /* ------------------------------------------------------------------ chip */
 
-.chip {
+/* The radio itself: visually gone, but never `display: none` or
+   `visibility: hidden`, either of which would take it out of the tab order and
+   throw away the keyboard model this whole pattern exists for. */
+.option {
 	position: relative;
-	width: 96px;
+	scroll-snap-align: start;
+}
+
+.option__input {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	opacity: 0;
+	appearance: none;
+	pointer-events: none;
+}
+
+.chip {
+	display: block;
+	position: relative;
+	/* Width comes from the grid track on .option, so the breakpoints only have
+	   to change one number instead of two that can drift apart. */
+	width: 100%;
 	aspect-ratio: 276 / 320;
 	padding: 0;
 	border: none;
 	border-radius: var(--r-1);
 	background: var(--s-2);
 	overflow: hidden;
-	scroll-snap-align: start;
+	cursor: pointer;
 	box-shadow: inset 0 0 0 1px var(--line-1);
 	transition:
 		box-shadow var(--d-2) var(--e-out),
@@ -549,7 +573,8 @@ body:not(.panel-open) .panel__tab {
 	color: var(--t-2);
 }
 
-.chip:focus-visible {
+/* The ring renders on the label, because the input it belongs to is invisible. */
+.option__input:focus-visible + .chip {
 	outline: none;
 	box-shadow: inset 0 0 0 1px var(--line-2), var(--focus-ring);
 }
@@ -559,11 +584,12 @@ body:not(.panel-open) .panel__tab {
 	transition-duration: var(--d-0);
 }
 
-.chip[aria-selected="true"] {
+.option__input:checked + .chip {
 	box-shadow: inset 0 0 0 1px var(--line-3);
 }
 
-.chip[aria-selected="true"]::after {
+/* Selection is never colour alone: a ring, a mark, and an inverted number. */
+.option__input:checked + .chip::after {
 	content: "";
 	position: absolute;
 	top: 6px;
@@ -573,13 +599,17 @@ body:not(.panel-open) .panel__tab {
 	background: var(--t-1);
 }
 
-.chip[aria-selected="true"] .chip__no {
+.option__input:checked + .chip .chip__no {
 	background: var(--t-1);
 	color: var(--t-inv);
 }
 
-.chip[aria-selected="true"]:hover {
+.option__input:checked + .chip:hover {
 	opacity: 0.94;
+}
+
+.option__input:focus-visible:checked + .chip {
+	box-shadow: inset 0 0 0 1px var(--line-3), var(--focus-ring);
 }
 
 /* Empty plate when a thumbnail 404s — never a broken-image glyph. */
@@ -607,7 +637,7 @@ body:not(.panel-open) .panel__tab {
 	color: var(--t-3);
 }
 
-.chip--none[aria-selected="true"] {
+.option__input:checked + .chip--none {
 	border-color: transparent;
 	box-shadow: inset 0 0 0 1px var(--line-3);
 }
@@ -715,11 +745,15 @@ body:not(.panel-open) .panel__tab {
 	box-shadow: inset 0 0 0 1px var(--line-1);
 }
 
-.seg button {
+.seg__item {
+	display: grid;
+	place-items: center;
 	height: 28px;
 	padding: 0 13px;
 	border: none;
 	background: transparent;
+	cursor: pointer;
+	white-space: nowrap;
 	font: 400 var(--fs-meta) / 1 var(--f-ui);
 	letter-spacing: 0.14em;
 	text-transform: uppercase;
@@ -729,28 +763,25 @@ body:not(.panel-open) .panel__tab {
 		background-color var(--d-1) linear;
 }
 
-.seg button + button {
+.seg .option + .option .seg__item {
 	box-shadow: inset 1px 0 0 var(--line-1);
 }
 
-.seg button:hover {
+.seg__item:hover {
 	color: var(--t-1);
 	background: var(--s-hover);
 }
 
-.seg button:focus-visible {
+.option__input:focus-visible + .seg__item {
+	box-shadow: var(--focus-ring);
 	z-index: 1;
 }
 
 /* An underscore, not a pill. The moving pill is the most templated component
    on the web; an underscore is a printed page. */
-.seg button[aria-checked="true"] {
+.option__input:checked + .seg__item {
 	color: var(--t-1);
 	box-shadow: inset 0 -1px 0 0 var(--line-3);
-}
-
-.seg button[aria-checked="true"] + button {
-	box-shadow: inset 1px 0 0 var(--line-1);
 }
 
 /* On wide screens the wrapper dissolves so its two children take their own
@@ -1050,13 +1081,23 @@ body.is-capturing .capture {
 	position: fixed;
 	inset: 0;
 	z-index: 9999;
+	max-width: none;
+	max-height: none;
+	width: 100%;
+	height: 100%;
+	border: 0;
 	background: var(--s-4);
+	color: var(--t-1);
 	display: grid;
 	place-content: center;
 	justify-items: start;
 	gap: 16px;
 	padding: 40px;
 	text-align: left;
+}
+
+.fatal::backdrop {
+	background: var(--s-4);
 }
 
 .fatal__title {
@@ -1382,10 +1423,6 @@ kbd {
 		gap: 16px;
 	}
 
-	.chip {
-		width: 84px;
-	}
-
 	.console {
 		left: max(28px, env(safe-area-inset-left));
 		bottom: max(28px, env(safe-area-inset-bottom));
@@ -1478,17 +1515,20 @@ kbd {
 		display: none;
 	}
 
-	.panel__tabs button {
-		height: 40px;
-		padding: 0 14px;
+	.panel__tabs .option {
 		flex: 0 0 auto;
-		box-shadow: none;
-		letter-spacing: 0.16em;
-		font-size: var(--fs-label);
 		scroll-snap-align: center;
 	}
 
-	.panel__tabs button[aria-checked="true"] {
+	.panel__tabs .seg__item {
+		height: 40px;
+		padding: 0 14px;
+		box-shadow: none;
+		letter-spacing: 0.16em;
+		font-size: var(--fs-label);
+	}
+
+	.panel__tabs .option__input:checked + .seg__item {
 		color: var(--t-1);
 		box-shadow: inset 0 -1px 0 0 var(--line-3);
 	}
@@ -1518,10 +1558,6 @@ kbd {
 		grid-auto-columns: 80px;
 		gap: 10px;
 		scroll-padding: 0 20px;
-	}
-
-	.chip {
-		width: 80px;
 	}
 
 	/* Looks and the light/quality/export controls get their own tab rather than
@@ -1703,7 +1739,7 @@ kbd {
 
 @media (forced-colors: active) {
 	.chip,
-	.seg button,
+	.seg__item,
 	.look {
 		forced-color-adjust: none;
 		border: 1px solid ButtonBorder;
@@ -1711,8 +1747,8 @@ kbd {
 		color: ButtonText;
 	}
 
-	.chip[aria-selected="true"],
-	.seg button[aria-checked="true"],
+	.option__input:checked + .chip,
+	.option__input:checked + .seg__item,
 	.look[aria-pressed="true"] {
 		border: 2px solid Highlight;
 	}

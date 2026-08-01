@@ -45,13 +45,41 @@ const categoryOf = (key) => CATEGORIES.find((c) => c.key === key)
 
 /* ------------------------------------------------------------- building */
 
+/**
+ * Every single-select control in the app is a native radio group.
+ *
+ * A hand-rolled `role="listbox"` or `role="radiogroup"` promises arrow-key
+ * navigation with wrap, a roving tabindex, one tab stop per group and a correct
+ * "3 of 5" announcement — roughly eighty lines of JavaScript to reach parity
+ * with what the browser already does. The input is visually hidden but never
+ * `display: none`, so it stays focusable and its focus ring renders on the label.
+ */
+function buildRadio({ group, value, className, label, contents = [] }) {
+	const wrap = document.createElement("div")
+	wrap.className = "option"
+
+	const input = document.createElement("input")
+	input.type = "radio"
+	input.className = "option__input"
+	input.name = group
+	input.id = `opt-${group}-${value}`
+	input.value = String(value)
+
+	const tile = document.createElement("label")
+	tile.className = className
+	tile.htmlFor = input.id
+
+	const name = document.createElement("span")
+	name.className = "sr-only"
+	name.textContent = label
+	tile.append(...contents, name)
+
+	wrap.append(input, tile)
+	return { wrap, input, tile }
+}
+
 function buildChip(category, item, index) {
-	const chip = document.createElement("button")
-	chip.type = "button"
-	chip.className = "chip"
-	chip.setAttribute("role", "option")
-	chip.dataset.category = category.key
-	chip.dataset.index = String(index)
+	const total = state.getItems(category.key).length
 
 	const image = document.createElement("img")
 	image.src = ASSETS.thumbnail(item.name)
@@ -60,46 +88,40 @@ function buildChip(category, item, index) {
 	image.height = 320
 	image.loading = "lazy"
 	image.decoding = "async"
-	// A broken-image glyph in a fashion grid is worse than an empty plate.
-	image.addEventListener("error", () => {
-		image.remove()
-		chip.classList.add("chip--noimage")
-	})
 
 	const number = document.createElement("span")
 	number.className = "chip__no"
+	number.setAttribute("aria-hidden", "true")
 	number.textContent = plateNumber(item.name) || String(index + 1).padStart(2, "0")
 
-	const name = document.createElement("span")
-	name.className = "sr-only"
-	name.textContent = `${category.singular} ${index + 1} of ${state.getItems(category.key).length}`
-
-	chip.append(image, number, name)
-	chip.addEventListener("click", () => {
-		state.toggle(category.key, index)
-		audio.playClick()
+	const { wrap, input, tile } = buildRadio({
+		group: category.key,
+		value: index,
+		className: "chip",
+		// Positional, not the plate number: "Jacket 3 of 2" would read as a bug.
+		label: `${category.singular} ${index + 1} of ${total}`,
+		contents: [image, number],
 	})
-	return chip
+
+	// A broken-image glyph in a fashion grid is worse than an empty plate.
+	image.addEventListener("error", () => {
+		image.remove()
+		tile.classList.add("chip--noimage")
+	})
+
+	input.dataset.index = String(index)
+	return { wrap, input }
 }
 
 function buildNoneChip(category) {
-	const chip = document.createElement("button")
-	chip.type = "button"
-	chip.className = "chip chip--none"
-	chip.setAttribute("role", "option")
-	chip.dataset.category = category.key
-	chip.dataset.index = "-1"
-
-	const name = document.createElement("span")
-	name.className = "sr-only"
-	name.textContent = `No ${category.singular.toLowerCase()}`
-	chip.appendChild(name)
-
-	chip.addEventListener("click", () => {
-		state.select(category.key, -1)
-		audio.playClick()
+	const { wrap, input } = buildRadio({
+		group: category.key,
+		value: "none",
+		className: "chip chip--none",
+		label: `No ${category.singular.toLowerCase()}`,
 	})
-	return chip
+	input.dataset.index = "-1"
+	return { wrap, input }
 }
 
 function buildSection(category) {
@@ -116,6 +138,7 @@ function buildSection(category) {
 
 	const label = document.createElement("h2")
 	label.className = "section__label"
+	label.id = `label-${category.key}`
 	label.textContent = category.label
 
 	const count = document.createElement("span")
@@ -126,25 +149,36 @@ function buildSection(category) {
 
 	head.append(label, count, prev, next)
 
+	// The radios are grouped by their `name`; this only supplies the accessible
+	// group name, so the browser still owns the keyboard model.
 	const track = document.createElement("div")
 	track.className = "items"
-	track.setAttribute("role", "listbox")
-	track.setAttribute("aria-label", category.label)
+	track.setAttribute("role", "radiogroup")
+	track.setAttribute("aria-labelledby", label.id)
 
-	const chips = [buildNoneChip(category)]
-	items.forEach((item, index) => chips.push(buildChip(category, item, index)))
-	track.append(...chips)
+	const options = [buildNoneChip(category)]
+	items.forEach((item, index) => options.push(buildChip(category, item, index)))
+	track.append(...options.map((o) => o.wrap))
+
+	section.append(head, track)
 
 	if (!items.length) {
 		const empty = document.createElement("p")
 		empty.className = "section__empty"
 		empty.textContent = "Unavailable"
-		track.replaceChildren(empty)
+		// Deliberately a sibling of the radiogroup, not a child: a <p> is not an
+		// owned element type, and assistive tech prunes it from inside one.
+		section.appendChild(empty)
 	}
 
-	section.append(head, track)
-
-	chipsByCategory.set(category.key, { section, chips, count, track, prev, next })
+	chipsByCategory.set(category.key, {
+		section,
+		inputs: options.map((o) => o.input),
+		count,
+		track,
+		prev,
+		next,
+	})
 	return section
 }
 
@@ -183,22 +217,26 @@ function buildTabs() {
 	tabsByCategory.clear()
 
 	for (const category of [...CATEGORIES, { key: EXTRAS_KEY, label: "Scene" }]) {
-		const tab = document.createElement("button")
-		tab.type = "button"
-		tab.setAttribute("role", "radio")
-		tab.setAttribute("aria-checked", "false")
-		tab.dataset.category = category.key
-
 		const text = document.createElement("span")
 		text.textContent = category.label
 
 		const badge = document.createElement("sup")
 		badge.className = "seg__badge"
+		badge.setAttribute("aria-hidden", "true")
 
-		tab.append(text, badge)
-		tab.addEventListener("click", () => showCategory(category.key))
-		els.tabs.appendChild(tab)
-		tabsByCategory.set(category.key, { tab, badge })
+		const { wrap, input, tile } = buildRadio({
+			group: "panel-tab",
+			value: category.key,
+			className: "seg__item",
+			label: category.label,
+			contents: [text, badge],
+		})
+		// The visible span already names it; the sr-only copy would double it up.
+		tile.querySelector(".sr-only").remove()
+
+		input.addEventListener("change", () => showCategory(category.key))
+		els.tabs.appendChild(wrap)
+		tabsByCategory.set(category.key, { input, badge })
 	}
 }
 
@@ -241,39 +279,44 @@ function buildLooks() {
 	return row
 }
 
-function buildSegment({ label, options, value, onSelect, className = "" }) {
+function buildSegment({ name, label, options, value, onSelect }) {
 	const wrap = document.createElement("div")
 	wrap.className = "field"
 
 	const heading = document.createElement("h2")
 	heading.className = "section__label"
+	heading.id = `label-${name}`
 	heading.textContent = label
 
 	const group = document.createElement("div")
-	group.className = `seg ${className}`.trim()
+	group.className = "seg"
 	group.setAttribute("role", "radiogroup")
-	group.setAttribute("aria-label", label)
+	group.setAttribute("aria-labelledby", heading.id)
 
-	const buttons = options.map((option) => {
-		const button = document.createElement("button")
-		button.type = "button"
-		button.setAttribute("role", "radio")
-		button.setAttribute("aria-checked", String(option.id === value))
-		button.textContent = option.label
-		button.dataset.value = option.id
-		button.addEventListener("click", () => {
-			for (const other of buttons) {
-				other.setAttribute("aria-checked", String(other === button))
-			}
+	const inputs = options.map((option) => {
+		const text = document.createElement("span")
+		text.textContent = option.label
+
+		const { wrap: item, input, tile } = buildRadio({
+			group: name,
+			value: option.id,
+			className: "seg__item",
+			label: option.label,
+			contents: [text],
+		})
+		tile.querySelector(".sr-only").remove()
+
+		input.checked = option.id === value
+		input.addEventListener("change", () => {
 			onSelect(option.id)
 			audio.playClick()
 		})
-		return button
+		group.appendChild(item)
+		return input
 	})
 
-	group.append(...buttons)
 	wrap.append(heading, group)
-	return { wrap, group, buttons }
+	return { wrap, group, inputs }
 }
 
 function buildFooter() {
@@ -281,6 +324,7 @@ function buildFooter() {
 	footer.className = "panel__footer"
 
 	const light = buildSegment({
+		name: "light",
 		label: "Light",
 		options: PRESET_ORDER.map((id) => ({ id, label: SCENES[id].label })),
 		value: currentPresetName(),
@@ -293,6 +337,7 @@ function buildFooter() {
 	els.lightSegment = light
 
 	const quality = buildSegment({
+		name: "quality",
 		label: "Quality",
 		options: TIER_ORDER.map((id) => ({ id, label: TIERS[id].label })),
 		value: "medium",
@@ -304,6 +349,7 @@ function buildFooter() {
 	els.qualitySegment = quality
 
 	const aspect = buildSegment({
+		name: "export",
 		label: "Export",
 		options: photoMode.ASPECTS.map((a) => ({ id: a.id, label: a.label })),
 		value: exportAspect,
@@ -326,9 +372,8 @@ function paint(snapshot) {
 		const selected = snapshot[category.key]
 		const total = state.getItems(category.key).length
 
-		for (const chip of parts.chips) {
-			const index = Number(chip.dataset.index)
-			chip.setAttribute("aria-selected", String(index === selected))
+		for (const input of parts.inputs) {
+			input.checked = Number(input.dataset.index) === selected
 		}
 
 		const shown = selected === -1 ? "—" : String(selected + 1).padStart(2, "0")
@@ -443,10 +488,19 @@ export function togglePanel(force) {
 	setPanel(force ?? !panelOpen)
 }
 
-function setPanel(open) {
+/** Whichever of the two recall affordances is actually rendered right now. */
+function recallControl() {
+	return els.toggle.offsetParent === null ? els.recall : els.toggle
+}
+
+function setPanel(open, { silent = false } = {}) {
+	if (open === panelOpen && !silent) return
+	const cameFromInside = els.panel.contains(document.activeElement)
 	panelOpen = open
+
 	els.panel.classList.toggle("collapsed", !open)
 	els.toggle.setAttribute("aria-expanded", String(open))
+	els.recall.setAttribute("aria-expanded", String(open))
 	document.body.classList.toggle("panel-open", open)
 
 	if (open) {
@@ -456,13 +510,20 @@ function setPanel(open) {
 			staggered = true
 			setTimeout(() => els.sections.classList.remove("sections--stagger"), 500)
 		}
+		// The phone recall button hides itself the moment the sheet opens, which
+		// would drop focus to <body>; move it into the sheet before that happens.
+		if (!silent && els.recall.contains(document.activeElement)) {
+			els.panelClose.focus()
+		}
 	} else {
 		// Ordering is load-bearing: setting `inert` on an ancestor of the focused
-		// element blurs it to <body> and loses all context.
-		if (els.panel.contains(document.activeElement)) els.toggle.focus()
+		// element blurs it to <body> and loses all context. And on phone the side
+		// tab is display:none, so focusing it would be a silent no-op.
+		if (cameFromInside) recallControl().focus()
 		els.panel.inert = true
 	}
-	announce(open ? "Wardrobe expanded." : "Wardrobe collapsed.")
+
+	if (!silent) announce(open ? "Wardrobe expanded." : "Wardrobe collapsed.")
 }
 
 const isPhone = () => window.matchMedia("(max-width: 767px)").matches
@@ -479,8 +540,8 @@ function showCategory(key) {
 			? category.label
 			: "Scene"
 
-	for (const [otherKey, { tab }] of tabsByCategory) {
-		tab.setAttribute("aria-checked", String(otherKey === key))
+	for (const [otherKey, { input }] of tabsByCategory) {
+		input.checked = otherKey === key
 	}
 	for (const [otherKey, { section }] of chipsByCategory) {
 		section.classList.toggle("section--active", otherKey === key)
@@ -496,9 +557,11 @@ export function focusCategory(index) {
 
 	const parts = chipsByCategory.get(category.key)
 	const selected = state.getIndex(category.key)
-	const chip = parts?.chips.find((c) => Number(c.dataset.index) === selected)
-	chip?.focus({ preventScroll: true })
-	chip?.scrollIntoView({ block: "nearest", inline: "center" })
+	const input = parts?.inputs.find((i) => Number(i.dataset.index) === selected)
+	input?.focus({ preventScroll: true })
+	input
+		?.closest(".option")
+		?.scrollIntoView({ block: "nearest", inline: "center" })
 }
 
 /* ------------------------------------------------------------- commands */
@@ -529,8 +592,8 @@ export function cycleScene() {
 	const next = PRESET_ORDER[(index + 1) % PRESET_ORDER.length]
 	applyScene(next)
 	hooks.onSceneChange()
-	for (const button of els.lightSegment.buttons) {
-		button.setAttribute("aria-checked", String(button.dataset.value === next))
+	for (const input of els.lightSegment.inputs) {
+		input.checked = input.value === next
 	}
 	toast(`LIGHT · ${SCENES[next].label}.`, { icon: "wb_twilight" })
 }
@@ -607,7 +670,7 @@ export function handleEscape() {
 	controls.cancelGesture()
 	if (panelOpen) {
 		setPanel(false)
-		els.toggle.focus()
+		recallControl().focus()
 		return
 	}
 	if (document.activeElement !== els.canvas) els.canvas.focus()
@@ -629,6 +692,8 @@ export function mountUI(options = {}) {
 	els.play = document.getElementById("audio-play")
 	els.mute = document.getElementById("audio-mute")
 	els.volume = document.getElementById("volume")
+	els.recall = document.getElementById("panel-recall")
+	els.panelClose = document.getElementById("panel-close")
 	els.shortcuts = document.getElementById("shortcuts")
 	els.shortcutsList = document.getElementById("shortcuts-list")
 
@@ -641,17 +706,24 @@ export function mountUI(options = {}) {
 	els.extras.append(buildLooks(), buildFooter())
 	els.sections.appendChild(els.extras)
 
+	// One delegated listener for every garment in every row. Arrow keys inside a
+	// row fire `change` too, so keyboard and pointer share exactly one path.
+	els.sections.addEventListener("change", (event) => {
+		const input = event.target
+		if (!input.matches(".items .option__input")) return
+		state.select(input.name, Number(input.dataset.index))
+		audio.playClick()
+	})
+
 	buildTabs()
 	showCategory(activeCategory)
 
 	els.toggle.addEventListener("click", () => togglePanel())
-	document.getElementById("panel-close").addEventListener("click", () => {
+	els.panelClose.addEventListener("click", () => {
 		setPanel(false)
-		els.toggle.focus()
+		recallControl().focus()
 	})
-	document.getElementById("panel-recall").addEventListener("click", () => {
-		setPanel(true)
-	})
+	els.recall.addEventListener("click", () => setPanel(true))
 
 	els.play.addEventListener("click", () => audio.toggle())
 	els.mute.addEventListener("click", () => toggleMute())
@@ -683,7 +755,9 @@ export function mountUI(options = {}) {
 	})
 
 	buildShortcuts()
-	setPanel(window.matchMedia("(min-width: 1024px)").matches)
+	// `silent` on the very first call: nothing has changed yet, so announcing
+	// "Wardrobe expanded" at boot would be reporting an event that never happened.
+	setPanel(window.matchMedia("(min-width: 1024px)").matches, { silent: true })
 
 	// The masthead and the category strip swap roles at the phone breakpoint.
 	window.matchMedia("(max-width: 767px)").addEventListener("change", () => {
@@ -693,7 +767,7 @@ export function mountUI(options = {}) {
 
 export function setQualityLabel(name) {
 	if (!els.qualitySegment) return
-	for (const button of els.qualitySegment.buttons) {
-		button.setAttribute("aria-checked", String(button.dataset.value === name))
+	for (const input of els.qualitySegment.inputs) {
+		input.checked = input.value === name
 	}
 }

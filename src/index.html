@@ -36,7 +36,7 @@
 		<h1 class="sr-only">Avatar Customizer</h1>
 
 		<!-- Markup, not JS, so the first paint happens before any script runs. -->
-		<div class="loading" id="loading" role="status">
+		<div class="loading" id="loading">
 			<header class="loading__head">
 				<p class="loading__mark">Bilal</p>
 				<p class="loading__strap">
@@ -66,7 +66,7 @@
 			<p class="sr-only" id="loading-status">Loading avatar…</p>
 		</div>
 
-		<div id="screenshotable">
+		<div id="screenshotable" inert>
 			<canvas
 				id="webgl"
 				class="webgl"
@@ -85,7 +85,7 @@
 			all shortcuts.
 		</p>
 
-		<div class="console" id="console" role="group" aria-label="Viewer controls">
+		<div class="console" id="console" role="group" aria-label="Viewer controls" inert>
 			<button id="audio-play" type="button" aria-label="Play music">
 				<span class="material-symbols-outlined" aria-hidden="true">play_arrow</span>
 			</button>
@@ -137,6 +137,7 @@
 			class="panel__tab"
 			id="panel-toggle"
 			type="button"
+			inert
 			aria-expanded="false"
 			aria-controls="panel"
 		>

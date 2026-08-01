@@ -9,7 +9,16 @@ import { announce } from "./notify.js"
  * generated from the same array, so the help can never drift from the behaviour.
  */
 
-const FORM_ELEMENTS = "button, input, select, textarea, a[href], [contenteditable]"
+/**
+ * Only text entry and value-bearing controls swallow shortcuts.
+ *
+ * Buttons deliberately do NOT: clicking any console control leaves focus on it
+ * in Chrome and Firefox, and treating that as "typing" silently disabled every
+ * shortcut in the app for the rest of the session. Space is handled separately
+ * below, because on a focused button it has to keep activating the button.
+ */
+const TEXT_ENTRY =
+	"input:not([type=radio]):not([type=button]), select, textarea, [contenteditable]"
 
 const isCanvas = () => document.activeElement?.id === "webgl"
 
@@ -141,12 +150,17 @@ function onKeyDown(event) {
 		}
 	}
 
-	const typing =
-		document.activeElement && document.activeElement.matches?.(FORM_ELEMENTS)
+	const active = document.activeElement
+	const typing = Boolean(active && active.matches?.(TEXT_ENTRY))
+	// Space and Enter belong to whatever is focused; stealing Space from a
+	// focused button would break the button.
+	const activatesFocus =
+		(event.key === " " || event.key === "Enter") &&
+		Boolean(active && active.matches?.("button, [role=button], input, a[href]"))
 
 	for (const shortcut of SHORTCUTS) {
 		if (!shortcut.run) continue
-		if (typing && !shortcut.always) continue
+		if ((typing || activatesFocus) && !shortcut.always) continue
 		if (shortcut.scope === "viewport" && !isCanvas()) continue
 
 		const matches = shortcut.match

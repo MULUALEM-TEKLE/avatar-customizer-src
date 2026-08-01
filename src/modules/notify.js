@@ -34,10 +34,14 @@ export function announce(message) {
 	ensureNodes()
 	// Re-setting identical text is a no-op for most screen readers; clearing
 	// first guarantees the second identical message is still read out.
+	//
+	// setTimeout rather than requestAnimationFrame: rAF does not run in a hidden
+	// tab, so an announcement made while backgrounded would be swallowed and then
+	// arrive out of context when the tab came forward.
 	liveRegion.textContent = ""
-	requestAnimationFrame(() => {
+	setTimeout(() => {
 		liveRegion.textContent = message
-	})
+	}, 40)
 }
 
 export function toast(message, { icon = null, duration = DEFAULT_DURATION } = {}) {
@@ -80,10 +84,11 @@ export function fatal({ title, detail, actionLabel = "Reload", onAction }) {
 	ensureNodes()
 	document.querySelector(".fatal")?.remove()
 
-	const overlay = document.createElement("div")
+	// A real <dialog> rather than role="alertdialog" on a div: showModal() supplies
+	// the focus trap, inerts the rest of the page and blocks Tab from escaping
+	// into the dead controls behind it. Hand-rolling that is pure liability.
+	const overlay = document.createElement("dialog")
 	overlay.className = "fatal"
-	overlay.setAttribute("role", "alertdialog")
-	overlay.setAttribute("aria-modal", "true")
 	overlay.setAttribute("aria-labelledby", "fatal-title")
 
 	const heading = document.createElement("h2")
@@ -103,6 +108,9 @@ export function fatal({ title, detail, actionLabel = "Reload", onAction }) {
 
 	overlay.append(heading, body, button)
 	document.body.appendChild(overlay)
+	overlay.showModal()
+	// There is nothing to go back to, so Escape must not dismiss it.
+	overlay.addEventListener("cancel", (event) => event.preventDefault())
 	button.focus()
 	return overlay
 }

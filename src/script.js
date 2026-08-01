@@ -129,6 +129,12 @@ async function boot() {
 
 	await loadingScreen.dismiss()
 
+	// The shell ships `inert` so nothing behind the opaque loading overlay is
+	// tabbable while it is up. Releasing it is the moment the app becomes usable.
+	for (const id of ["screenshotable", "console", "panel-toggle"]) {
+		document.getElementById(id)?.removeAttribute("inert")
+	}
+
 	// Never steal focus from someone who tabbed away while it loaded.
 	if (document.activeElement === document.body) {
 		canvas.focus({ preventScroll: true })

@@ -399,6 +399,10 @@ function buildComposer() {
 }
 
 function teardownComposer() {
+	// EffectComposer clones the target into its own read/write buffers, so
+	// disposing only our target would leak two full-size render targets on every
+	// quality change.
+	composer?.dispose()
 	bloomPass?.dispose()
 	renderTarget?.dispose()
 	composer = null

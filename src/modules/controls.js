@@ -136,7 +136,13 @@ function onPointerMove(event) {
 }
 
 function endPointer(event, { cancelled = false } = {}) {
-	canvas.releasePointerCapture?.(event.pointerId)
+	// A drag that began on the panel and released over the canvas delivers a
+	// pointerup we never captured; releasing it throws NotFoundError, and
+	// re-baselining from it would jump the avatar.
+	if (!pointers.has(event.pointerId)) return
+	if (canvas.hasPointerCapture?.(event.pointerId)) {
+		canvas.releasePointerCapture(event.pointerId)
+	}
 	pointers.delete(event.pointerId)
 
 	if (cancelled) {
