@@ -66,9 +66,10 @@ void main() {
 	vec3 color = mix(uDepthColor, uSurfaceColor, mixStrength);
 
 	gl_FragColor = vec4(color, 1.0);
-	#include <fog_fragment>
 	#include <tonemapping_fragment>
 	#include <colorspace_fragment>
+	// Fog after encoding — see the note in world.js's ground shader.
+	#include <fog_fragment>
 	gl_FragColor.rgb = applyDither(gl_FragColor.rgb, gl_FragCoord.xy);
 }
 `
@@ -169,9 +170,10 @@ void main() {
 	color = mix(color, uSnowColor, smoothstep(high, snow, vElevation));
 
 	gl_FragColor = vec4(color, 1.0);
-	#include <fog_fragment>
 	#include <tonemapping_fragment>
 	#include <colorspace_fragment>
+	// Fog after encoding — see the note in world.js's ground shader.
+	#include <fog_fragment>
 	gl_FragColor.rgb = applyDither(gl_FragColor.rgb, gl_FragCoord.xy);
 }
 `

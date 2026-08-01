@@ -282,7 +282,13 @@ function tick() {
 	environment.setAudioLevel(level)
 	// The same signal that moves the water also drives the console's VU rule,
 	// which is the only place the analyser is visible rather than inferred.
-	document.documentElement.style.setProperty("--level", level.toFixed(3))
+	// Only on change, and only on the element that reads it: writing a custom
+	// property on <html> every frame invalidates style for the whole document.
+	const step = level.toFixed(2)
+	if (step !== lastLevel) {
+		lastLevel = step
+		consoleEl?.style.setProperty("--level", step)
+	}
 
 	world.updateWorld(elapsed)
 	environment.updateEnvironment(elapsed)
@@ -293,6 +299,8 @@ function tick() {
 
 let looping = false
 let paused = false
+let lastLevel = ""
+const consoleEl = document.getElementById("console")
 
 function startLoop() {
 	if (looping) return

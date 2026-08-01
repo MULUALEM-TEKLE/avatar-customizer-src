@@ -181,7 +181,11 @@ img {
 }
 
 :where(a[href], button, input, [tabindex]):focus-visible {
-	outline: none;
+	/* A transparent outline alongside the shadow: forced-colors mode drops
+	   box-shadow entirely, and an outline is the only indicator it honours —
+	   where it also replaces `transparent` with the system highlight colour. */
+	outline: 2px solid transparent;
+	outline-offset: 2px;
 	box-shadow: var(--focus-ring);
 	border-radius: var(--r-1);
 }
@@ -441,8 +445,30 @@ body:not(.panel-open) .panel__tab {
 
 .section {
 	display: grid;
-	grid-template-rows: 20px 111px;
+	/* `auto` on the last track, not a fixed 111px: an empty category appends a
+	   third child, which would otherwise land in an unsized implicit row. */
+	grid-template-rows: 20px auto;
 	row-gap: 12px;
+}
+
+/* Applied for one pass the first time the panel opens, then removed. */
+.sections--stagger .section {
+	animation: section-in var(--d-2) var(--e-entrance) both;
+}
+
+.sections--stagger .section:nth-child(1) { animation-delay: 0ms; }
+.sections--stagger .section:nth-child(2) { animation-delay: 40ms; }
+.sections--stagger .section:nth-child(3) { animation-delay: 80ms; }
+.sections--stagger .section:nth-child(4) { animation-delay: 120ms; }
+/* Capped at five: past 200ms a stagger stops reading as arrival and starts
+   reading as lag. */
+.sections--stagger .section:nth-child(n + 5) { animation-delay: 160ms; }
+
+@keyframes section-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
 }
 
 .section__head {
@@ -613,6 +639,7 @@ body:not(.panel-open) .panel__tab {
 }
 
 /* Empty plate when a thumbnail 404s — never a broken-image glyph. */
+.option__input:checked + .chip--noimage .chip__no,
 .chip--noimage .chip__no {
 	position: static;
 	display: grid;
@@ -699,6 +726,13 @@ body:not(.panel-open) .panel__tab {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
+}
+
+/* Declared before the focus rule would lose to it: `:where(...)` contributes no
+   specificity, so that rule is (0,1,0) — exactly the same as `.look`, and later
+   in the file. Without an explicit focus state the Look buttons had no ring. */
+.look:focus-visible {
+	box-shadow: inset 0 0 0 1px var(--line-3), var(--focus-ring);
 }
 
 .look {
@@ -996,7 +1030,7 @@ body:not(.panel-open) .panel__tab {
 
 /* --------------------------------------------------------------- capture */
 
-.capture {
+.console .capture {
 	height: 40px !important;
 	width: auto !important;
 	padding: 0 20px;
@@ -1019,16 +1053,16 @@ body:not(.panel-open) .panel__tab {
 	font-size: 18px;
 }
 
-.capture:hover {
+.console .capture:hover {
 	background: var(--sig-hi) !important;
 }
 
-.capture:active {
+.console .capture:active {
 	transform: scale(0.985);
 	transition-duration: var(--d-0);
 }
 
-body.is-capturing .capture {
+body.is-capturing .console .capture {
 	pointer-events: none;
 }
 
@@ -1037,7 +1071,8 @@ body.is-capturing .capture {
 .toasts {
 	position: fixed;
 	left: max(40px, env(safe-area-inset-left));
-	bottom: 92px;
+	/* Clear of the now-wearing caption, which also sits at 92px. */
+	bottom: 140px;
 	z-index: 9000;
 	display: flex;
 	flex-direction: column-reverse;
@@ -1427,7 +1462,7 @@ kbd {
 	}
 
 	.section {
-		grid-template-rows: 20px 97px;
+		grid-template-rows: 20px auto;
 	}
 
 	.items {
@@ -1557,7 +1592,7 @@ kbd {
 
 	.section {
 		display: none;
-		grid-template-rows: 93px;
+		grid-template-rows: auto;
 		padding: 0 20px;
 	}
 
@@ -1619,7 +1654,7 @@ kbd {
 		display: none;
 	}
 
-	.capture {
+	.console .capture {
 		width: 44px !important;
 		height: 44px !important; /* WCAG 2.5.5 minimum; the console is 56px tall */
 		padding: 0;

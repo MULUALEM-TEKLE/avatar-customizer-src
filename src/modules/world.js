@@ -213,9 +213,19 @@ void main() {
 	vec3 color = mix(uDepthColor, uSurfaceColor, mixStrength);
 
 	gl_FragColor = vec4(color, 1.0);
-	#include <fog_fragment>
 	#include <tonemapping_fragment>
 	#include <colorspace_fragment>
+	// Fog LAST, after tone mapping and the colour-space conversion.
+	// three uploads fogColor already encoded in the renderer's OUTPUT space
+	// whenever it draws straight to the canvas (getUnlitUniformColorSpace returns
+	// outputColorSpace when there is no render target), which is why three's own
+	// shaders order the chunks this way. Applying fog first mixed sRGB-encoded
+	// values into linear colour and then encoded them a second time — at dusk the
+	// fog came out ~2.9x too bright, so the ridge sat against the sky as a pale
+	// band exactly where it should have dissolved into it. And because the
+	// composer path uses the working space instead, the seam appeared and
+	// disappeared with the Quality setting.
+	#include <fog_fragment>
 	gl_FragColor.rgb = applyDither(gl_FragColor.rgb, gl_FragCoord.xy);
 }
 `
