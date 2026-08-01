@@ -69,10 +69,13 @@ async function boot() {
 				}),
 		})
 	} catch (error) {
+		// Branch on `kind`, not on `instanceof`: every failure mode is now an
+		// AssetError, so the old test sent a corrupt file down the "check your
+		// connection" path and a dropped connection down the "damaged" one.
 		const detail =
-			error instanceof AssetError
-				? "The avatar model could not be downloaded. Check your connection and try again."
-				: "The avatar model is damaged and could not be read."
+			error?.kind === "decode"
+				? "The avatar model arrived damaged and could not be read."
+				: "The avatar model could not be downloaded. Check your connection and try again."
 		loadingScreen.fail("Could not load the avatar.")
 		fatal({ title: "Loading failed", detail, actionLabel: "Reload" })
 		return

@@ -33,12 +33,17 @@ export function disposeLoaders() {
 }
 
 export class AssetError extends Error {
-	constructor(url, reason, cause) {
+	/**
+	 * `kind` is "network" when the bytes never arrived and "decode" when they
+	 * arrived and could not be read. Callers pick their wording from it — an
+	 * `instanceof` test cannot tell the two apart, and getting it backwards
+	 * tells someone with a corrupt file to check their connection.
+	 */
+	constructor(url, reason, { kind = "network", cause } = {}) {
 		super(`Could not load ${url}: ${reason}`)
 		this.name = "AssetError"
 		this.url = url
-		// Kept so a network drop stays distinguishable from a corrupt file when
-		// this reaches a log.
+		this.kind = kind
 		this.cause = cause
 	}
 }
@@ -53,7 +58,7 @@ async function fetchWithProgress(url, onProgress, expectedBytes = 0) {
 	try {
 		response = await fetch(url)
 	} catch (cause) {
-		throw new AssetError(url, "network unreachable", cause)
+		throw new AssetError(url, "network unreachable", { cause })
 	}
 	if (!response.ok) throw new AssetError(url, `HTTP ${response.status}`)
 
@@ -92,7 +97,7 @@ async function fetchWithProgress(url, onProgress, expectedBytes = 0) {
 		}
 		return merged.buffer
 	} catch (cause) {
-		throw new AssetError(url, "the transfer was interrupted", cause)
+		throw new AssetError(url, "the transfer was interrupted", { cause })
 	}
 }
 
@@ -104,7 +109,12 @@ export async function loadGLTF(url, { onProgress, expectedBytes } = {}) {
 			"",
 			resolve,
 			(cause) =>
-				reject(new AssetError(url, "the file could not be read", cause)),
+				reject(
+					new AssetError(url, "the file could not be read", {
+						kind: "decode",
+						cause,
+					}),
+				),
 		)
 	})
 }
@@ -115,7 +125,8 @@ export function loadHDR(url) {
 			url,
 			resolve,
 			undefined,
-			(cause) => reject(new AssetError(url, "could not decode HDR", cause)),
+			(cause) =>
+				reject(new AssetError(url, "could not decode HDR", { kind: "decode", cause })),
 		)
 	})
 }
