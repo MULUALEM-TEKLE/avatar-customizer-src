@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Launch-video soundtrack: melodic techno, A minor, 124 BPM, 26 bars + tail.
 // Pure JS DSP, zero dependencies. Usage: node synth.mjs --out <dir>
-// Writes <dir>/track.wav (48 kHz 16-bit stereo), <dir>/track.json (bar grid), <dir>/preview-8-13.wav.
+// Writes <dir>/track.wav (48 kHz 16-bit stereo), <dir>/track.json (bar grid), <dir>/preview-20-26.wav (bar 20 to the end).
+// Director's cut: one continuous groove from bar 4 to the hit on 24 (no dropouts), then a clean A-minor end card that fades with a closing low-pass.
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -44,7 +45,7 @@ class SVF {
   }
 }
 
-// ---------- buses: scene A = bars 0..24, scene B = end card (own fx, so the 1/8 silence after bar 24 is real) ----------
+// ---------- buses: scene A = bars 0..24, scene B = end card (own fx, so no reverb from the build smears the end card) ----------
 const buf = () => new Float32Array(N);
 const scene = () => ({ dL: buf(), dR: buf(), bass: buf(), pL: buf(), pR: buf(), lL: buf(), lR: buf(), sL: buf(), sR: buf(), rvL: buf(), rvR: buf(), dlL: buf(), dlR: buf() });
 const A = scene(), B = scene();
@@ -109,14 +110,15 @@ function impact(sc, t, gain = 1) {
   }
   noiseHit(sc, t, { gain: 0.42 * gain, decay: 0.06, fc: 2500, rv: 0 });
 }
-function riser(sc, t0, t1, { gain = 0.12, f0 = 400, f1 = 9000 } = {}) {
-  const i0 = S(t0), i1 = S(t1), fl = new SVF(), fr = new SVF();
+function riser(sc, t0, t1, { gain = 0.12, f0 = 400, f1 = 9000, sine = 0, s0 = 220, s1 = 1760 } = {}) {
+  const i0 = S(t0), i1 = S(t1), fl = new SVF(), fr = new SVF(); let ph = 0;
   for (let i = i0; i < i1; i++) {
     const x = (i - i0) / (i1 - i0);
     if ((i & 15) === 0) { const fc = expLerp(f0, f1, x); fl.set(fc, 2.5); fr.set(fc * 1.04, 2.5); }
     fl.run(noise()); fr.run(noise());
     const e = gain * x * x * Math.min(1, (i1 - i) / 240);
-    sc.dL[i] += fl.bp * e; sc.dR[i] += fr.bp * e; sc.rvL[i] += fl.bp * e * 0.3; sc.rvR[i] += fr.bp * e * 0.3;
+    ph += TAU * expLerp(s0, s1, x) / SR; const sn = sine * Math.sin(ph) * x * Math.min(1, (i - i0) / 240, (i1 - i) / 240);
+    sc.dL[i] += fl.bp * e + sn; sc.dR[i] += fr.bp * e + sn; sc.rvL[i] += fl.bp * e * 0.3; sc.rvR[i] += fr.bp * e * 0.3;
   }
 }
 
@@ -200,56 +202,63 @@ function playLine(sc, bar, notes, opts = {}, oct = 0) {
 A.kL = buf(); A.kR = buf(); // muffled kick bus for bars 2-3
 for (let bar = 0; bar < 24; bar++) {
   const c = PROG[bar % 4];
-  padChord(A, at(bar), BAR, c.pad, { atk: bar === 0 ? 1.2 : 0.25, gain: bar < 4 ? 0.075 : 0.065 });
+  padChord(A, at(bar), BAR, c.pad, { atk: bar === 0 ? 1.2 : 0.25, gain: bar < 4 ? 0.068 : 0.052 }); // darker + quieter under the lead
   // bars 0-3: soft filtered 1/8 pulse, an octave above the bass, hints the tempo
   if (bar < 4) for (let e = 0; e < 8; e++)
     bassNote(A, at(bar, e * 2), STEP * 1.2, hz(up(c.root, 1)), { gain: (e % 2 ? 0.16 : 0.1) * (0.6 + 0.4 * bar / 3), cut: 160 + bar * 60, env: 300 + bar * 120, q: 1.2 });
-  // kick on every beat, bars 2..22 (bar 23 is the snare roll)
-  if (bar >= 2 && bar < 23) for (let b = 0; b < 4; b++) kick(A, at(bar, b * 4), bar < 4 ? { depth: 0.25, L: A.kL, R: A.kR } : {});
+  // kick on every beat, bars 2..23 (muffled 2-3 so the main scene already moves; full groove from 4)
+  if (bar >= 2 && bar < 24) for (let b = 0; b < 4; b++) kick(A, at(bar, b * 4), bar < 4 ? { depth: 0.25, L: A.kL, R: A.kR } : {});
   // hats
   if (bar === 2) for (const b of [2, 3]) hat(A, at(bar, b * 4 + 2), { gain: 0.05 * b, decay: 0.05 });
   if (bar === 3) for (let b = 0; b < 4; b++) hat(A, at(bar, b * 4 + 2), { gain: 0.08 + 0.03 * b, decay: 0.06 });
-  if (bar >= 4 && bar < 22) for (let b = 0; b < 4; b++) {
+  if (bar >= 4 && bar < 24) for (let b = 0; b < 4; b++) {
     hat(A, at(bar, b * 4 + 2), { gain: bar >= 16 ? 0.24 : 0.2, decay: bar >= 16 ? 0.085 : 0.07, fc: 6500 });
     if (bar >= 8) for (const s of [1, 3]) hat(A, at(bar, b * 4 + s), { gain: bar >= 16 ? 0.075 : 0.06, decay: 0.022, pan: s === 1 ? -0.35 : 0.35, fc: 9000 });
   }
-  // bass: rolling 1/8, on-beat notes softer (the kick owns the beat); bar 23 drops out
-  if (bar >= 4 && bar < 23) {
-    const lift = bar >= 14 && bar < 16 ? (bar - 14) / 2 : bar >= 16 && bar < 22 ? 1 : 0;
+  // bass: rolling 1/8 through bar 23, on-beat notes softer (the kick owns the beat)
+  if (bar >= 4 && bar < 24) {
+    const lift = bar >= 14 && bar < 16 ? (bar - 14) / 2 : bar >= 16 ? 1 : 0;
     for (let e = 0; e < 8; e++)
       bassNote(A, at(bar, e * 2), STEP * 1.6, hz(e === 7 && bar % 2 ? up(c.root, 1) : c.root), { gain: e % 2 ? 0.34 : 0.2, cut: 320 + 260 * lift, env: 1000 + 900 * lift });
   }
   // lead motif (bar 6+), octave up and wide in the drop; counter-melody from bar 12
   if (bar >= 6 && bar < 16) playLine(A, bar, MOTIF[bar % 4]);
   if (bar >= 16 && bar < 20) playLine(A, bar, MOTIF[bar % 4], { wide: true, cut: 5200, gain: 0.1 }, 1);
-  if (bar >= 20 && bar < 22) playLine(A, bar, MOTIF[bar % 4], { gain: 0.1 });
+  if (bar >= 20 && bar < 24) playLine(A, bar, MOTIF[bar % 4], { gain: 0.1 });
   if (bar >= 12 && bar < 20) for (const [st, nm, len] of COUNTER[bar % 4])
-    leadNote(A, at(bar, st), len * STEP * 0.85, hz(nm), null, { gain: 0.07, pulse: true, cut: 1600, pan: -0.45, dl: 0.25, rv: 0.3 });
+    leadNote(A, at(bar, st), len * STEP * 0.85, hz(up(nm, 1)), null, { gain: 0.07, pulse: true, cut: 1600, pan: -0.45, dl: 0.25, rv: 0.3 });
   // drop 16-19: clap on 2 & 4, stab + noise accent on every half-bar line; 20-21: stab on every beat
   if (bar >= 16 && bar < 22) for (const b of [1, 3]) clap(A, at(bar, b * 4));
   if (bar >= 16 && bar < 20) for (const h of [0, 8]) {
     stab(A, at(bar, h), c.stab, { gain: 0.06, decay: 0.16 });
     if (!(bar === 16 && h === 0)) noiseHit(A, at(bar, h), { gain: 0.16, decay: 0.07, fc: 5000 });
   }
-  if (bar >= 20 && bar < 22) for (let b = 0; b < 4; b++) stab(A, at(bar, b * 4), c.stab, { gain: 0.055, decay: 0.09, dl: 0.1 });
+  if (bar >= 20 && bar < 24) for (let b = 0; b < 4; b++) stab(A, at(bar, b * 4), c.stab, { gain: bar < 22 ? 0.055 : 0.045, decay: 0.09, dl: 0.1 });
 }
 riser(A, at(3), at(4), { gain: 0.1 });
 riser(A, at(14), at(16), { gain: 0.08, f0: 600 });
 riser(A, at(22), at(24), { gain: 0.12, f0: 500, f1: 12000 });
+// short risers (noise + rising sine) in the last beat before the cuts on 8, 16, 24
+for (const b of [8, 16, 24]) riser(A, at(b - 1, 12), at(b), { gain: 0.1, f0: 1500, f1: 10000, sine: 0.05 });
+// drum fills into 8 and 20: 1/16 snares on the last beat
+for (const [b, g] of [[8, 0.1], [20, 0.16]]) for (let s = 12; s < 16; s++) snare(A, at(b - 1, s), { gain: g * (0.6 + 0.15 * (s - 12)), fc: 2200 + 400 * (s - 12) });
 // snare build over bar 15: 1/8s then 1/16s, rising
 for (let s = 0; s < 16; s++) { const x = s / 15; if (s < 8 && s % 2) continue; snare(A, at(15, s), { gain: 0.08 + 0.2 * x * x, fc: 1800 + 2500 * x }); }
-// bars 22-23: 1/8 snare roll, pitch and filter rising (one hit per cut)
-for (let e = 0; e < 16; e++) { const x = e / 15; snare(A, at(22, e * 2), { gain: 0.14 + 0.3 * x, pitch: 2 ** (x * 1.2), fc: expLerp(900, 7000, x), rv: 0.1 }); }
+// bars 22-23: 1/8 snare roll over the running kick, pitch and filter rising (one hit per cut)
+for (let e = 0; e < 16; e++) { const x = e / 15; snare(A, at(22, e * 2), { gain: 0.08 + 0.18 * x, pitch: 2 ** (x * 1.2), fc: expLerp(900, 7000, x), rv: 0.1 }); }
 impact(A, at(16));
-// end card (scene B): hard hit on 24, 1/8 of silence, then pad + melody resolve on A
-kick(B, at(24), { gain: 1.1, decay: 0.07, len: 0.24, depth: 0 });
+// end card (scene B): clean resolving hit on 24 (tonic stab + kick + impact), then pad, bass and lead hold A
+// under a soft 4-on-the-floor (-8 dB) through bar 25; the master fade closes it over 25.5-26.5
+kick(B, at(24), { gain: 1.1, decay: 0.12, len: 0.4, depth: 0.3 });
 impact(B, at(24), 1.1);
-stab(B, at(24), ['A2', 'E3', 'A3', 'C4'], { gain: 0.05, decay: 0.05, rv: 0, dl: 0 });
-kick(B, at(25), { gain: 0.75, depth: 0.2 });
-padChord(B, at(24, 2), BAR * 1.5 - 2 * STEP, PROG[0].pad, { atk: 0.35, rel: 1.1, gain: 0.07 });
-padChord(B, at(24, 2), BAR * 1.5 - 2 * STEP, ['A2'], { atk: 0.35, rel: 1.1, gain: 0.05 });
+stab(B, at(24), ['A2', 'E3', 'A3', 'C4', 'E4'], { gain: 0.05, decay: 0.2, rv: 0.12, dl: 0 });
+for (let q = 1; q < 8; q++) kick(B, at(24, q * 4), { gain: 10 ** (-8 / 20), depth: 0.25 });
+const HOLD = (END_BAR - 24) * BAR;
+padChord(B, at(24), HOLD, ['A3', 'C4', 'E4'], { atk: 0.05, rel: 0, gain: 0.06 });
+padChord(B, at(24), HOLD, ['A2'], { atk: 0.05, rel: 0, gain: 0.045 });
+bassNote(B, at(24), HOLD, hz('A1'), { gain: 0.26, cut: 240, env: 600, q: 1 });
 lastLead = null;
-playLine(B, 24, [[2, 'E5', 2], [4, 'D5', 4], [8, 'C5', 4], [12, 'B4', 4], [16, 'A4', 14]], { gain: 0.1, rv: 0.45 });
+playLine(B, 24, [[2, 'C5', 2], [4, 'B4', 4], [8, 'A4', 40]], { gain: 0.1, rv: 0.25, dl: 0.2 });
 
 // ---------- fx + mix ----------
 // Sidechain envelope from kick onsets: 3 ms dip, ~120 ms recovery.
@@ -262,15 +271,22 @@ for (const { t, depth } of kicks) {
   }
 }
 function delay(L, R) { // ping-pong dotted 1/8, damped feedback
-  const d = S(BEAT * 0.75), oL = buf(), oR = buf(), lp1 = new SVF().set(4200), lp2 = new SVF().set(4200), hp = new SVF().set(280);
+  const d = S(BEAT * 0.75), oL = buf(), oR = buf(), lp1 = new SVF().set(4200), lp2 = new SVF().set(4200), hp = new SVF().set(280), FB = 0.35;
   for (let i = 0; i < N; i++) {
     hp.run((L[i] + R[i]) * 0.5);
-    oL[i] = lp1.run(hp.hp + (i >= d ? oR[i - d] : 0) * 0.42);
-    oR[i] = lp2.run((i >= d ? oL[i - d] : 0) * 0.42);
+    oL[i] = lp1.run(hp.hp + (i >= d ? oR[i - d] : 0) * FB);
+    oR[i] = lp2.run((i >= d ? oL[i - d] : 0) * FB);
   }
-  return [oL, oR];
+  return hpReturn(oL, oR);
 }
-function reverb(L, R, room = 0.86, damp = 0.35) { // Freeverb, 25 ms pre-delay, 220 Hz HP on the input
+// 220 Hz high-pass on an fx return (12 dB/oct), so no low-end mush builds up under the kick and bass.
+function hpReturn(L, R) {
+  const fl = new SVF().set(220), fr = new SVF().set(220);
+  for (let i = 0; i < N; i++) { fl.run(L[i]); fr.run(R[i]); L[i] = fl.hp; R[i] = fr.hp; }
+  return [L, R];
+}
+// Freeverb, 25 ms pre-delay, 220 Hz HP in and out. room 0.82: longest comb 37 ms -> RT60 = 3 * 0.037 / -log10(0.82) = 1.3 s
+function reverb(L, R, room = 0.82, damp = 0.35) {
   const k = SR / 44100, pre = S(0.025), hl = new SVF().set(220), hr = new SVF().set(220);
   const mk = (sp) => ({
     c: [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617].map((n) => ({ b: new Float32Array(Math.round((n + sp) * k)), i: 0, s: 0 })),
@@ -286,11 +302,11 @@ function reverb(L, R, room = 0.86, damp = 0.35) { // Freeverb, 25 ms pre-delay, 
       (c ? oR : oL)[i] = y;
     }
   }
-  return [oL, oR];
+  return hpReturn(oL, oR);
 }
 const tb = (i) => i / SR / BAR; // sample -> bars
 const padCut = (b) => b < 2 ? expLerp(450, 750, b / 2) : b < 4 ? expLerp(750, 1300, (b - 2) / 2) : b < 8 ? 1600 : b < 14 ? 1900
-  : b < 16 ? expLerp(1900, 5200, (b - 14) / 2) : b < 20 ? 4200 : b < 22 ? 3000 : b < 24 ? expLerp(2000, 6500, (b - 22) / 2) : expLerp(1800, 700, Math.min(1, (b - 24) / 2));
+  : b < 16 ? expLerp(1900, 5200, (b - 14) / 2) : b < 20 ? 4200 : b < 22 ? 3000 : b < 24 ? expLerp(2000, 6500, (b - 22) / 2) : 1800;
 const padGain = (b) => b < 4 ? 1 : b < 8 ? 0.85 : b < 16 ? 0.75 : b < 20 ? 1 : b < 22 ? 0.6 : 0.85;
 
 function mixScene(sc, gate) {
@@ -298,16 +314,20 @@ function mixScene(sc, gate) {
     const f1 = new SVF(), f2 = new SVF();
     for (let i = S(at(2)); i < Math.min(N, S(at(4.3))); i++) {
       const x = smooth((tb(i) - 2) / 2);
-      if ((i & 15) === 0) { const fc = expLerp(140, 9000, x); f1.set(fc, 0.6); f2.set(fc, 0.6); }
+      if ((i & 15) === 0) { const fc = expLerp(200, 9000, x); f1.set(fc, 0.6); f2.set(fc, 0.6); }
       const v = f2.run(f1.run(sc.kL[i])) * (0.75 + 0.25 * x); sc.dL[i] += v; sc.dR[i] += v;
     }
   }
   const fl = new SVF(), fr = new SVF();
   for (let i = 0; i < N; i++) {
-    if ((i & 15) === 0) { const fc = padCut(tb(i)); fl.set(fc, 0.8); fr.set(fc, 0.8); }
+    if ((i & 15) === 0) { const fc = 0.75 * padCut(tb(i)); fl.set(fc, 0.8); fr.set(fc, 0.8); } // 0.75: darker pad under the lead
     const g = padGain(tb(i)) * (0.55 + 0.45 * duck[i]);
     sc.pL[i] = fl.run(sc.pL[i]) * g; sc.pR[i] = fr.run(sc.pR[i]) * g;
     sc.rvL[i] += sc.pL[i] * 0.4; sc.rvR[i] += sc.pR[i] * 0.4;
+  }
+  { // lead bus: 400 Hz HP (lead + counter sit above the pad and bass), gentle +2 dB shelf above 4 kHz
+    const h = [new SVF().set(400), new SVF().set(400)], sh = [new SVF().set(4000), new SVF().set(4000)], g = 10 ** (2 / 20) - 1;
+    for (let i = 0; i < N; i++) for (const [c, X] of [[0, sc.lL], [1, sc.lR]]) { h[c].run(X[i]); sh[c].run(h[c].hp); X[i] = h[c].hp + g * sh[c].hp; }
   }
   const [dL, dR] = delay(sc.dlL, sc.dlR);
   for (let i = 0; i < N; i++) { sc.rvL[i] += dL[i] * 0.25; sc.rvR[i] += dR[i] * 0.25; }
@@ -320,15 +340,17 @@ function mixScene(sc, gate) {
   }
   return [L, R];
 }
-const cut24 = S(at(24)), fadeA = S(0.003), fade0 = S(at(26)), fade1 = S(at(26.55));
+const cut24 = S(at(24)), fadeA = S(0.003), fade0 = S(at(25.5)), fade1 = S(at(26.5));
 const [aL, aR] = mixScene(A, (i) => i < cut24 - fadeA ? 1 : i >= cut24 ? 0 : (cut24 - i) / fadeA);
 const [bL, bR] = mixScene(B, () => 1);
 const L = new Float64Array(N), R = new Float64Array(N);
-{ // sum scenes, end fade (bar 26 -> 26.55), DC blocker
-  let xl = 0, xr = 0, yl = 0, yr = 0; const r = 1 - TAU * 12 / SR;
+{ // sum scenes, end fade over bar 25.5 -> 26.5 (volume and a 2-pole low-pass closing together), DC blocker
+  let xl = 0, xr = 0, yl = 0, yr = 0; const r = 1 - TAU * 12 / SR, fl = new SVF(), fr = new SVF();
   for (let i = 0; i < N; i++) {
-    const end = i < fade0 ? 1 : i >= fade1 ? 0 : 0.5 + 0.5 * Math.cos(Math.PI * (i - fade0) / (fade1 - fade0));
-    const l = (aL[i] + bL[i]) * end, rr = (aR[i] + bR[i]) * end;
+    const x = Math.min(1, Math.max(0, (i - fade0) / (fade1 - fade0))), end = 0.5 + 0.5 * Math.cos(Math.PI * x);
+    if ((i & 15) === 0) { const fc = expLerp(16000, 220, x); fl.set(fc, 0.6); fr.set(fc, 0.6); }
+    const sl = aL[i] + bL[i], sr = aR[i] + bR[i], ol = fl.run(sl), or = fr.run(sr);
+    const l = (i < fade0 ? sl : ol) * end, rr = (i < fade0 ? sr : or) * end;
     yl = l - xl + r * yl; xl = l; yr = rr - xr + r * yr; xr = rr; L[i] = yl; R[i] = yr;
   }
 }
@@ -385,9 +407,9 @@ function wav(path, l, r, i0 = 0, i1 = N, fade = 0) {
 }
 mkdirSync(OUT, { recursive: true });
 wav(join(OUT, 'track.wav'), out[0], out[1]);
-wav(join(OUT, 'preview-8-13.wav'), out[0], out[1], S(at(8)), S(at(13)), S(0.01));
+wav(join(OUT, 'preview-20-26.wav'), out[0], out[1], S(at(20)), N, S(0.01));
 const r6 = (x) => Math.round(x * 1e6) / 1e6;
-const SECTIONS = [['title', 0, 2], ['loader', 2, 4], ['hero', 4, 8], ['cycle-beat', 8, 16], ['drop-halfbar', 16, 20], ['cycle-beat', 20, 22], ['roll-eighth', 22, 24], ['end', 24, 26]];
+const SECTIONS = [['title', 0, 2], ['hero', 2, 8], ['cycle-beat', 8, 16], ['drop-halfbar', 16, 20], ['cycle-beat', 20, 22], ['strobe-halfbeat', 22, 24], ['end', 24, 26]];
 const json = {
   bpm: BPM, fps: FPS, bars: BARS, barSeconds: r6(BAR), beatSeconds: r6(BEAT), sampleRate: SR, duration: r6(N / SR),
   barTimes: Array.from({ length: BARS + 1 }, (_, i) => r6(i * BAR)),
