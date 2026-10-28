@@ -87,6 +87,8 @@
 				aria-describedby="viewport-help"
 			></canvas>
 			<p class="plate-caption" id="plate-caption"></p>
+			<!-- Dips to the fog colour while a place is swapped. -->
+			<div class="place-veil" id="place-veil" aria-hidden="true"></div>
 		</div>
 
 		<p id="viewport-help" class="sr-only">
@@ -119,6 +121,9 @@
 			</button>
 			<button id="environment" type="button" aria-label="Next place">
 				<span class="material-symbols-outlined" aria-hidden="true">landscape</span>
+			</button>
+			<button id="light" type="button" aria-label="Next time of day">
+				<span class="material-symbols-outlined" aria-hidden="true">wb_twilight</span>
 			</button>
 			<button id="shuffle" type="button" aria-label="Shuffle a random outfit">
 				<span class="material-symbols-outlined" aria-hidden="true">shuffle</span>

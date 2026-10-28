@@ -6,6 +6,11 @@
  *
  *   node scripts/capture-matrix.mjs --url http://localhost:5173 --out _/shots/<dir>/raw \
  *        [--tier high] [--places harbor,rooftop,forest,dunes] [--presets dawn,noon,dusk,night]
+ *        [--pose DynamicPose] [--mask] [--viewport 390x844]
+ *
+ * --pose pins a clip (DynamicPose is static, so captures line up pixel for
+ * pixel); --mask hides the backdrop and clears to magenta, which gives a
+ * character silhouette for masked luminance measurements.
  */
 import { spawn } from "node:child_process"
 import fs from "node:fs"
@@ -21,6 +26,9 @@ const OUT = arg("--out", "_/shots/matrix/raw")
 const TIER = arg("--tier", "high")
 const PLACES = arg("--places", "harbor,rooftop,forest,dunes").split(",")
 const PRESETS = arg("--presets", "dawn,noon,dusk,night").split(",")
+const POSE = arg("--pose", "")
+const MASK = process.argv.includes("--mask")
+const [VW, VH] = arg("--viewport", "1440x900").split("x").map(Number)
 const CHROME =
 	process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 const PORT = 9333 + Math.floor(Math.random() * 500)
@@ -35,7 +43,7 @@ const chrome = spawn(
 		"--headless=new",
 		"--use-angle=metal",
 		"--hide-scrollbars",
-		"--window-size=1440,900",
+		`--window-size=${VW},${VH}`,
 		"--no-first-run",
 		"about:blank",
 	],
@@ -86,6 +94,14 @@ const READY = `new Promise((r) => {
 // 30 frames with info.autoReset off: calls and triangles accumulate across
 // every pass of every frame, so dividing by the frame count gives the true
 // per-frame cost including bloom.
+const MASK_SETUP = `(async () => {
+	const u = performance.getEntriesByType("resource").map((e) => e.name).find((n) => /\\/modules\\/world\\.js(\\?|$)/.test(n))
+	const w = await import(u)
+	w.backdrop.visible = false
+	w.renderer.setClearColor(CLEAR, 1)
+	await new Promise((r) => setTimeout(r, 400))
+})()`
+
 const STATS = `(async () => {
 	const u = performance.getEntriesByType("resource").map((e) => e.name).find((n) => /\\/modules\\/world\\.js(\\?|$)/.test(n))
 	const w = await import(u)
@@ -107,10 +123,10 @@ async function main() {
 	const cdp = new CDP(ws)
 	await cdp.send("Runtime.enable")
 	await cdp.send("Emulation.setDeviceMetricsOverride", {
-		width: 1440,
-		height: 900,
+		width: VW,
+		height: VH,
 		deviceScaleFactor: 1,
-		mobile: false,
+		mobile: VW < 768,
 	})
 	fs.mkdirSync(OUT, { recursive: true })
 
@@ -118,15 +134,26 @@ async function main() {
 	for (const place of PLACES) {
 		for (const preset of PRESETS) {
 			cdp.errors = 0
-			await cdp.send("Page.navigate", { url: `${BASE}/?e=${place}&t=${preset}&q=${TIER}` })
+			const pose = POSE ? `&p=${POSE}` : ""
+			await cdp.send("Page.navigate", { url: `${BASE}/?e=${place}&t=${preset}&q=${TIER}${pose}` })
 			await cdp.send("Runtime.evaluate", { expression: READY, awaitPromise: true })
+			if (MASK) {
+				// Two clear colours: pixels that do not change between them are
+				// the character. One colour alone is unreliable under tone
+				// mapping, bloom and the panel's blurred scrim.
+				const m1 = await cdp.send("Runtime.evaluate", { expression: MASK_SETUP.replace("CLEAR", "0xff00ff"), awaitPromise: true, returnByValue: true })
+				if (m1.exceptionDetails) console.error("mask setup failed:", m1.exceptionDetails.text, m1.exceptionDetails.exception?.description)
+				const a = await cdp.send("Page.captureScreenshot", { format: "png" })
+				fs.writeFileSync(path.join(OUT, `${place}-${preset}-${TIER}${POSE ? "-" + POSE : ""}-maskA.png`), Buffer.from(a.data, "base64"))
+				await cdp.send("Runtime.evaluate", { expression: MASK_SETUP.replace("CLEAR", "0x00ff00"), awaitPromise: true })
+			}
 			const stats = await cdp.send("Runtime.evaluate", {
 				expression: STATS,
 				awaitPromise: true,
 				returnByValue: true,
 			})
 			const shot = await cdp.send("Page.captureScreenshot", { format: "png" })
-			const file = path.join(OUT, `${place}-${preset}-${TIER}.png`)
+			const file = path.join(OUT, `${place}-${preset}-${TIER}${POSE ? "-" + POSE : ""}${MASK ? "-maskB" : ""}${VW !== 1440 ? `-${VW}x${VH}` : ""}.png`)
 			fs.writeFileSync(file, Buffer.from(shot.data, "base64"))
 			const s = JSON.parse(stats.result.value)
 			rows.push({ place, preset, tier: TIER, ...s, errors: cdp.errors, file })

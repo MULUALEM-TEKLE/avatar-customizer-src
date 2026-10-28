@@ -793,6 +793,7 @@ export function mountUI(options = {}) {
 	})
 	document.getElementById("pose").addEventListener("click", () => cyclePose(1))
 	document.getElementById("environment").addEventListener("click", () => cycleEnvironment(1))
+	document.getElementById("light").addEventListener("click", () => cycleScene())
 	environment.onThemeChange((name) => {
 		for (const input of els.placeSegment?.inputs ?? []) input.checked = input.value === name
 	})

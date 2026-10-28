@@ -190,6 +190,8 @@ function restoreSession() {
 	if (outfit) state.applyOutfit(outfit)
 	else state.applyDefaults()
 
+	const askedPose = new URLSearchParams(location.search).get("p")
+	if (askedPose && character.playPose(askedPose, 0)) return
 	if (saved?.pose) character.playPose(saved.pose, 0)
 	else character.playPose(DEFAULT_ANIMATION, 0)
 }

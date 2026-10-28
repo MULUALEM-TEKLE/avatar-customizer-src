@@ -1825,3 +1825,38 @@ kbd {
 		background: Canvas;
 	}
 }
+
+/* ------------------------------------------------------------ place veil */
+
+.place-veil {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	opacity: 0;
+	background: #000;
+	transition: opacity 360ms var(--e-inout, ease-in-out);
+}
+
+.place-veil--on {
+	opacity: 1;
+	transition-duration: 220ms;
+}
+
+/* Phone: the console is a single row. Two more buttons (place, light) only
+   fit if the rarely used ones step aside and the rest tighten up. */
+@media (max-width: 767px) {
+	#reset-view,
+	#audio-mute {
+		display: none;
+	}
+
+	.console {
+		gap: 2px;
+		padding-left: 10px;
+		padding-right: 10px;
+	}
+
+	.console button {
+		width: 40px;
+	}
+}

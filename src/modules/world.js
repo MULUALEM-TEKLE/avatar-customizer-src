@@ -21,6 +21,7 @@ let renderTarget = null
 let key = null
 let fill = null
 let rim = null
+let front = null
 
 let contactShadow = null
 let groundBounce = null
@@ -88,13 +89,22 @@ function createLights() {
 	rim = new THREE.DirectionalLight(LIVE.rimColor, LIVE.rimIntensity)
 	rim.target = focus
 
+	// Camera-side front light. The key is fixed in the world, so as the avatar
+	// turns its face swings in and out of the key; this keeps whatever faces the
+	// viewer readable at every yaw and under every preset. No shadow: it is
+	// fill, not a second sun.
+	front = new THREE.DirectionalLight(LIVE.frontColor, LIVE.frontIntensity)
+	front.position.set(0.9, 1.6, 3.4)
+	front.target = focus
+
 	// Colours are the shared LIVE instances, so a preset crossfade reaches the
 	// lights without anyone pushing values into them.
 	key.color = LIVE.keyColor
 	fill.color = LIVE.fillColor
 	rim.color = LIVE.rimColor
+	front.color = LIVE.frontColor
 
-	scene.add(key, fill, rim)
+	scene.add(key, fill, rim, front)
 	configureShadow(tier.shadowMapSize || 1024)
 }
 
@@ -405,6 +415,7 @@ export function setupWorld({ canvas, tier: tierName = "medium" }) {
 		key.intensity = live.keyIntensity
 		fill.intensity = live.fillIntensity
 		rim.intensity = live.rimIntensity
+		front.intensity = live.frontIntensity
 		rim.position.copy(live.sunDir).multiplyScalar(6)
 
 		// Fog distances belong to the place (env/index.js); the colour is shared.

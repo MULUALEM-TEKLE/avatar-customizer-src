@@ -102,8 +102,20 @@ export function setTheme(name, { immediate = false } = {}) {
 		show(next, name)
 		return true
 	}
-	Promise.resolve(next.ready)
-		.then(() => renderer.compileAsync(next.group, camera, scene))
+
+	// Dip to the fog colour while the next place loads and compiles: a hard
+	// cut between two worlds reads as a glitch, a short dip reads as travel.
+	const veil = document.getElementById("place-veil")
+	if (veil) {
+		veil.style.background = `#${LIVE.horizon.getHexString()}`
+		veil.classList.add("place-veil--on")
+	}
+	const dipped = new Promise((r) => setTimeout(r, 240))
+
+	Promise.all([
+		Promise.resolve(next.ready).then(() => renderer.compileAsync(next.group, camera, scene)),
+		dipped,
+	])
 		.then(() => {
 			if (token !== swapToken) {
 				next.dispose()
@@ -111,10 +123,14 @@ export function setTheme(name, { immediate = false } = {}) {
 				return
 			}
 			show(next, name)
+			veil?.classList.remove("place-veil--on")
 		})
 		.catch((error) => {
 			console.error(error)
-			if (token === swapToken) pendingName = currentName
+			if (token === swapToken) {
+				pendingName = currentName
+				veil?.classList.remove("place-veil--on")
+			}
 		})
 	return true
 }
