@@ -2,5 +2,10 @@
 	"$schema": "https://unpkg.com/wrangler@4/config-schema.json",
 	"name": "avatar-customizer",
 	"compatibility_date": "2026-10-01",
-	"assets": { "directory": "./dist" }
+	"main": "worker.js",
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS",
+		"run_worker_first": ["/models/*"]
+	}
 }

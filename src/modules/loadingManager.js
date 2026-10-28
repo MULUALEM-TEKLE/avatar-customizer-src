@@ -61,7 +61,12 @@ async function fetchWithProgress(url, onProgress, expectedBytes = 0) {
 	}
 	if (!response.ok) throw new AssetError(url, `HTTP ${response.status}`)
 
-	const declared = Number(response.headers.get("content-length")) || 0
+	// A brotli response declares its compressed size but the stream yields
+	// decoded bytes; the Worker sends the decoded size in X-Decoded-Length.
+	const declared =
+		Number(response.headers.get("x-decoded-length")) ||
+		Number(response.headers.get("content-length")) ||
+		0
 	const total = declared || expectedBytes
 
 	// Everything below can also fail mid-transfer. Left unwrapped, a dropped
