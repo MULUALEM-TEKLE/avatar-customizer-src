@@ -1,7 +1,6 @@
 import { scene, backdrop, camera, renderer, currentTier } from "../world.js"
 import { LIVE, onPreset } from "../presets.js"
 import * as sky from "./sky.js"
-import { disposeGroup } from "./lib.js"
 import harbor from "./harbor.js"
 import rooftop from "./rooftop.js"
 import forest from "./forest.js"
@@ -51,6 +50,20 @@ let currentName = null
 /** The place the user last asked for; it may still be compiling. */
 let pendingName = null
 let swapToken = 0
+/**
+ * Built places stay alive for the session. Building and compiling a place
+ * costs 0.7–1.2 s; a return visit should cost nothing but the dip.
+ */
+const places = new Map()
+
+function obtain(name) {
+	let place = places.get(name)
+	if (!place) {
+		place = THEMES[name].create({ floorY, tier: currentTier(), LIVE })
+		places.set(name, place)
+	}
+	return place
+}
 let floorY = -0.9
 let audioLevel = 0
 const listeners = new Set()
@@ -71,10 +84,7 @@ export function mountEnvironment({ floorHeight = -0.9, theme = DEFAULT_THEME } =
 }
 
 function show(next, name) {
-	if (current) {
-		current.dispose()
-		disposeGroup(current.group)
-	}
+	if (current && current !== next) backdrop.remove(current.group)
 	current = next
 	currentName = name
 	backdrop.add(current.group)
@@ -96,7 +106,7 @@ export function setTheme(name, { immediate = false } = {}) {
 
 	pendingName = name
 	const token = ++swapToken
-	const next = def.create({ floorY, tier: currentTier(), LIVE })
+	const next = obtain(name)
 
 	if (immediate) {
 		show(next, name)
@@ -117,11 +127,7 @@ export function setTheme(name, { immediate = false } = {}) {
 		dipped,
 	])
 		.then(() => {
-			if (token !== swapToken) {
-				next.dispose()
-				disposeGroup(next.group)
-				return
-			}
+			if (token !== swapToken) return // superseded; the place stays cached
 			show(next, name)
 			veil?.classList.remove("place-veil--on")
 		})
@@ -153,7 +159,27 @@ export function onThemeChange(fn) {
 
 export function rebuildForTier(tier) {
 	sky.rebuildForTier(tier)
-	current?.rebuildForTier?.(tier)
+	for (const place of places.values()) place.rebuildForTier?.(tier)
+}
+
+/**
+ * After the reveal, build and compile the other places one at a time in the
+ * background, so the first swap to each is as quick as a return visit.
+ * Skipped on low: those devices should spend neither the memory nor the time.
+ */
+export function warmPlaces() {
+	if (currentTier().detail === 0) return
+	const queue = THEME_ORDER.filter((name) => !places.has(name))
+	const step = () => {
+		const name = queue.shift()
+		if (!name) return
+		const place = obtain(name)
+		Promise.resolve(place.ready)
+			.then(() => renderer.compileAsync(place.group, camera, scene))
+			.catch(console.error)
+			.finally(() => setTimeout(step, 600))
+	}
+	setTimeout(step, 2000)
 }
 
 export function updateEnvironment(elapsed) {

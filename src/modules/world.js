@@ -2,6 +2,9 @@ import * as THREE from "three"
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js"
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js"
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
+import { BokehPass } from "three/addons/postprocessing/BokehPass.js"
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js"
+import { VignetteShader } from "three/addons/shaders/VignetteShader.js"
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js"
 import gsap from "gsap"
 
@@ -16,7 +19,10 @@ export let backdrop = null
 
 let composer = null
 let bloomPass = null
+let bokehPass = null
+let vignettePass = null
 let renderTarget = null
+const FOCUS_POINT = new THREE.Vector3(...CAMERA.target)
 
 let key = null
 let fill = null
@@ -299,7 +305,7 @@ export function setFraming({ x = 0.5, y = 0.5 }, { animate = true } = {}) {
 
 function buildComposer() {
 	teardownComposer()
-	if (!tier.bloom) return
+	if (!tier.bloom && !tier.dof) return
 
 	renderTarget = new THREE.WebGLRenderTarget(1, 1, {
 		type: THREE.HalfFloatType, // clamping at 1.0 would make a >1.0 threshold extract nothing
@@ -309,13 +315,36 @@ function buildComposer() {
 
 	composer = new EffectComposer(renderer, renderTarget)
 	composer.addPass(new RenderPass(scene, camera))
-	bloomPass = new UnrealBloomPass(
-		new THREE.Vector2(window.innerWidth, window.innerHeight),
-		tier.bloom.strength,
-		tier.bloom.radius,
-		tier.bloom.threshold,
-	)
-	composer.addPass(bloomPass)
+	// Depth of field keeps the figure the visual centre: focus follows the
+	// camera distance to it (set every frame in render), the place behind
+	// falls off softly. A small aperture: the deck under the boots should
+	// still read as planks.
+	if (tier.dof) {
+		bokehPass = new BokehPass(scene, camera, {
+			focus: camera.position.distanceTo(FOCUS_POINT),
+			aperture: tier.dof.aperture,
+			maxblur: tier.dof.maxblur,
+		})
+		composer.addPass(bokehPass)
+	}
+	if (tier.bloom) {
+		bloomPass = new UnrealBloomPass(
+			new THREE.Vector2(window.innerWidth, window.innerHeight),
+			tier.bloom.strength,
+			tier.bloom.radius,
+			tier.bloom.threshold,
+		)
+		composer.addPass(bloomPass)
+	}
+	if (tier.dof) {
+		// A quiet vignette, before tone mapping so it darkens rather than greys.
+		vignettePass = new ShaderPass(VignetteShader)
+		// darkness must stay <= 1: above it the shader mixes toward a negative
+		// colour and the corners go green.
+		vignettePass.uniforms.offset.value = 1.2
+		vignettePass.uniforms.darkness.value = 0.9
+		composer.addPass(vignettePass)
+	}
 	// Must be last: it owns tone mapping and the sRGB conversion.
 	composer.addPass(new OutputPass())
 	resize(true)
@@ -327,9 +356,13 @@ function teardownComposer() {
 	// quality change.
 	composer?.dispose()
 	bloomPass?.dispose()
+	bokehPass?.dispose?.()
+	vignettePass?.dispose?.()
 	renderTarget?.dispose()
 	composer = null
 	bloomPass = null
+	bokehPass = null
+	vignettePass = null
 	renderTarget = null
 }
 
@@ -363,6 +396,7 @@ export function currentTier() {
 /* --------------------------------------------------------------- frame */
 
 export function render() {
+	if (bokehPass) bokehPass.uniforms.focus.value = camera.position.distanceTo(FOCUS_POINT)
 	if (composer) composer.render()
 	else renderer.render(scene, camera)
 }

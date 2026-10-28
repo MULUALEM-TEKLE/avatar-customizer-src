@@ -152,6 +152,8 @@ async function boot() {
 	if (document.activeElement === document.body) {
 		canvas.focus({ preventScroll: true })
 	}
+
+	environment.warmPlaces()
 }
 
 function isWebGLAvailable() {
