@@ -69,10 +69,12 @@ class CDP {
 		this.id = 0
 		this.pending = new Map()
 		this.errors = 0
+		this.loaded = null
 		ws.onmessage = (e) => {
 			const m = JSON.parse(e.data)
 			if (m.method === "Runtime.exceptionThrown") this.errors++
 			if (m.method === "Runtime.consoleAPICalled" && m.params.type === "error") this.errors++
+			if (m.method === "Page.loadEventFired") this.loaded?.()
 			const p = this.pending.get(m.id)
 			if (!p) return
 			this.pending.delete(m.id)
@@ -130,6 +132,7 @@ async function main() {
 	await new Promise((r) => (ws.onopen = r))
 	const cdp = new CDP(ws)
 	await cdp.send("Runtime.enable")
+	await cdp.send("Page.enable")
 	await cdp.send("Emulation.setDeviceMetricsOverride", {
 		width: VW,
 		height: VH,
@@ -144,7 +147,12 @@ async function main() {
 		for (const preset of PRESETS) {
 			cdp.errors = 0
 			const pose = POSE ? `&p=${POSE}` : ""
+			// Wait for the new document's load event before polling it: evaluating
+			// straight after Page.navigate can still land in the previous page,
+			// whose loading screen is long gone (seen under CPU throttling).
+			const loaded = new Promise((r) => (cdp.loaded = r))
 			await cdp.send("Page.navigate", { url: `${BASE}/?e=${place}&t=${preset}&q=${TIER}${pose}&stats` })
+			await Promise.race([loaded, sleep(20000)])
 			await cdp.send("Runtime.evaluate", { expression: READY, awaitPromise: true })
 			if (MASK) {
 				// Two clear colours: pixels that do not change between them are
@@ -162,7 +170,13 @@ async function main() {
 				returnByValue: true,
 			})
 			if (stats.exceptionDetails) {
-				console.error(`${place}/${preset}: stats failed:`, stats.exceptionDetails.exception?.description || stats.exceptionDetails.text)
+				const diag = await cdp.send("Runtime.evaluate", {
+					expression: `JSON.stringify({ loading: !!document.getElementById("loading"), pct: document.getElementById("loading-percent")?.textContent, dialog: document.querySelector("dialog[open]")?.textContent?.trim().slice(0, 120) || null, avatar: typeof window.__avatar, ready: document.readyState })`,
+					returnByValue: true,
+				})
+				console.error(`${place}/${preset}: stats failed:`, stats.exceptionDetails.exception?.description || stats.exceptionDetails.text, diag.result?.value)
+				const shot = await cdp.send("Page.captureScreenshot", { format: "png" })
+				fs.writeFileSync(path.join(OUT, `${place}-${preset}-${TIER}-FAILED.png`), Buffer.from(shot.data, "base64"))
 				continue
 			}
 			const shot = await cdp.send("Page.captureScreenshot", { format: "png" })
