@@ -1,6 +1,6 @@
 # Handoff
 
-Updated: 2026-10-28 11:50, places framework commit on master, session: places
+Updated: 2026-10-28 13:10, after merging the four place branches (2762b30), session: places
 
 ## Goal
 
@@ -8,13 +8,17 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## In flight
 
-- master (orchestrator): places framework landed (`src/modules/env/`). Workers in worktrees build rooftop/forest/dunes/harbor and the load trims; orchestrator does panel-aware camera framing in world.js/ui.js/photoMode.js. Next: merge worker branches, QA matrix (4 places x 4 lights x 3 tiers), deploy.
+- master (orchestrator): all five worker branches merged. Running the capture matrix (`node scripts/capture-matrix.mjs`, high and low) and a fresh code review; then fixes, deploy, report.
 
 ## Blocked / waiting
 
 - Asset trims need an owner decision (see Next). Nothing else.
 
 ## Decisions (last 2 weeks)
+
+- 2026-10-28: places are procedural and swappable (`src/modules/env/`): Harbor, Rooftop, Forest, Dunes, each `create({floorY, tier, LIVE})` per the contract in `env/index.js`. The sky is a dome; its probe copy feeds `scene.environment` through PMREM, so the HDR and the scenery GLB are gone (-0.9 MB).
+- 2026-10-28: the figure is framed in the uncovered viewport by a `setViewOffset` lens shift (desktop: half the 384 px panel; phone sheet: capped at 10% of the height). Exports clear it.
+- 2026-10-28: the model is served brotli by `worker.js` on Cloudflare (`run_worker_first` for /models/*), 3.0 MB raw -> ~2.2 MB on the wire; the face normal map is 512^2 (pixel-identical at the closest zoom).
 
 - 2026-10-28: one-shot gestures settle into the default idle, never into the last looping clip (Fly sat before Cast in the picker, so every gesture ended in levitation). Cycling continues from the picked clip.
 - 2026-10-28: garments render double-sided (`shadowSide` stays BackSide); the mountain plane too. Skin roughness fixed at 0.72 (export had 0.4).
