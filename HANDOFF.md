@@ -1,6 +1,6 @@
 # Handoff
 
-Updated: 2026-10-28 20:10, launch video in flight (4a31469 storyboard, c58db08 on master), session: places
+Updated: 2026-10-28 21:20, launch film assembled, mobile pass deployed (352914e+), session: places
 
 ## Goal
 
@@ -8,13 +8,15 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## In flight
 
-- master (orchestrator): launch video. Two workers in worktrees: `scripts/launch-video/synth.mjs` (melodic techno at 124 BPM, writes `_/launch/track.wav`) and `scripts/launch-video/render.mjs` + `assemble.sh` (frame-exact render of `storyboard.json` against a dev server, ffmpeg assembly to `_/launch/launch.mp4`). Then: review the cut, re-assemble with the track, social export, and hand link + stills + video to the portfolio (xar-highlights) agent.
+- none
 
 ## Blocked / waiting
 
 - Asset trims need an owner decision (see Next). Nothing else.
 
 ## Decisions (last 2 weeks)
+
+- 2026-10-28 (night): launch film pipeline under `scripts/launch-video/` (`storyboard.json` → `render.mjs` frame-exact against a dev server, `synth.mjs` generates the 124 BPM track, `assemble.sh` ffmpeg); outputs in `_/launch/` and `_/social/2026-10-28-launch/`. Mobile: low tier keeps one place, textures pre-upload, 30 fps idle rest; `?stats` exposes modules for profiling production builds.
 
 - 2026-10-28 (evening): production polish merged for all four places (kits: `forest-kit.glb` 328 KB, `dunes-kit.glb` 28 KB, Quaternius CC0; build scripts under `scripts/`). Skin tone is fair (`SKIN_COLOR #edd6c4`). Depth of field subtle, vignette darkness exactly 1. Icon font class rule lives in style.css (fonts self-hosted). Final matrix: 32 cells, zero errors, both tiers at the 60 Hz cap.
 
