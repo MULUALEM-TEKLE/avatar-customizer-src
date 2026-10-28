@@ -130,6 +130,10 @@ async function boot() {
 		})
 	})
 
+	// A place that fetches a kit (the forest) must have it before the reveal,
+	// or its trees pop in after the ground.
+	await environment.whenReady()
+
 	// ~30 programs; compiled synchronously on the first frame they held the
 	// main thread for about two seconds with the progress bar frozen at 98%.
 	// Parallel compile keeps the loading screen alive and finishes sooner.

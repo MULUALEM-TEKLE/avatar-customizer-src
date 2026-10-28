@@ -152,6 +152,11 @@ export function currentThemeName() {
 	return currentName
 }
 
+/** Resolves when the current place has everything it fetches (boot waits on it under the loading screen). */
+export function whenReady() {
+	return Promise.resolve(current?.ready)
+}
+
 export function onThemeChange(fn) {
 	listeners.add(fn)
 	return () => listeners.delete(fn)
