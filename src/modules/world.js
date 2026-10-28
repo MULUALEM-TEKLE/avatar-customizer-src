@@ -342,10 +342,11 @@ function buildComposer() {
 	if (dof) {
 		// A quiet vignette, before tone mapping so it darkens rather than greys.
 		vignettePass = new ShaderPass(VignetteShader)
-		// darkness must stay <= 1: above it the shader mixes toward a negative
-		// colour and the corners go green.
-		vignettePass.uniforms.offset.value = 1.35
-		vignettePass.uniforms.darkness.value = 0.6
+		// The shader mixes toward vec3(1 - darkness): below 1 that is grey (a
+		// haze over the frame), above 1 negative (green corners). Darkness is
+		// exactly 1, so it mixes toward black; offset sets how far in it reaches.
+		vignettePass.uniforms.offset.value = 0.85
+		vignettePass.uniforms.darkness.value = 1
 		composer.addPass(vignettePass)
 	}
 	// Must be last: it owns tone mapping and the sRGB conversion.
