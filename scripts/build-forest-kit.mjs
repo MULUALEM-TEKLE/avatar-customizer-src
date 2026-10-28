@@ -7,7 +7,7 @@
  *
  * Every model becomes one named mesh (MapleTree_1, Bush_Large, ...) with its own
  * material. Normal maps are dropped, maple leaves use the greyscale sheet,
- * leaves are alpha-masked, the trees and the mushroom are simplified, textures are resized and turned into WebP, then
+ * leaves are alpha-masked, the trees, the mushroom and the clover are simplified, textures are resized and turned into WebP, then
  * dedup + prune + Draco. Runs @gltf-transform/cli@4 through pnpm dlx, so no
  * dependency lands in package.json.
  */
@@ -28,9 +28,12 @@ const MODELS = [
 	[ultimate, "MapleTree_3", 0.3],
 	[ultimate, "BirchTree_4", 0.3],
 	[ultimate, "Bush_Large", 0],
+	[ultimate, "Bush", 0],
+	[ultimate, "Bush_Small", 0],
 	[ultimate, "Flower_2_Clump", 0], // yellow
 	[ultimate, "Flower_4_Clump", 0], // pink
 	[mega, "Fern_1", 0],
+	[mega, "Clover_1", 0.5],
 	[mega, "Mushroom_Common", 0.35],
 	[mega, "Rock_Medium_1", 0],
 ]
