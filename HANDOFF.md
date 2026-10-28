@@ -1,6 +1,6 @@
 # Handoff
 
-Updated: 2026-10-28 21:20, launch film assembled, mobile pass deployed (352914e+), session: places
+Updated: 2026-10-28 21:50, launch film v2 in flight (a41b9a5 storyboard), session: places
 
 ## Goal
 
@@ -8,7 +8,7 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## In flight
 
-- none
+- master (orchestrator): launch film v2 — two workers: `synth.mjs` revision (continuous flow, resolved ending, writes `_/launch/v2/track.wav`) and `render.mjs` v2 (60 fps, direct camera keyframes, no loader, writes `_/launch/v2/frames` and `launch-v2.mp4`). v1 stays at `_/launch/launch.mp4` and `_/social/2026-10-28-launch/`. Then: review, re-assemble with the v2 track, social export v2, portfolio handoff to the xar-project-highlights session.
 
 ## Blocked / waiting
 
