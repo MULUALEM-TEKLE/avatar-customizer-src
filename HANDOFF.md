@@ -1,6 +1,6 @@
 # Handoff
 
-Updated: 2026-10-28 22:40, launch film v2 delivered (2df6c57), session: places
+Updated: 2026-10-28 17:40, loader outline + entrance, session: places
 
 ## Goal
 
@@ -16,6 +16,7 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## Decisions (last 2 weeks)
 
+- 2026-10-28 (loader): the loading screen is the model's own outline. `scripts/trace-outline.mjs` bakes the default look into `src/index.html` (view-plane units ×1000, from `?entrance=hold` on the dev server); `loadingScreen.track()` places it from the camera's projection matrix every frame, so it lands on the figure at any viewport (screen check: ≤1 CSS px median at DPR 1-3). The app saves each session's own silhouette with the outfit (`saveOutline` in script.js: traced on the first frame of the pose from the entrance camera) and an inline script in index.html applies it before first paint; the hash the app writes (`#o=`) counts as the same session, a shared link with another outfit or `?p=` is traced live at 98 %. Entrance: figure revealed dead centre with the wardrobe closed; pose frozen on frame 0, camera pulled back 8 % (`controls.beginEntrance`); the drawing (pencil pass, ink led by a pen tip, no fill) must finish before the reveal; then the dark lifts (1.0 s) and exposure 0.08 → 1 (2.0 s) with the line on the still figure, the line flares to the accent and is gone by 1.7 s, only then the dolly home and the breath; `openWardrobe()` slides the panel in 0.5 s after the overlay is removed. WebP turntable and `render-loader.mjs` removed; canvas focus ring transparent (shortcuts listen on the window). Evidence: `scripts/record-entrance.mjs --mode match|record` (match = overlay + flat-mask screen distance, `--look` for a saved look; record against `pnpm preview`, the dev server reports bytes in one jump).
 - 2026-10-28 (night): launch film pipeline under `scripts/launch-video/` (`storyboard.json` → `render.mjs` frame-exact against a dev server, `synth.mjs` generates the 124 BPM track, `assemble.sh` ffmpeg); outputs in `_/launch/` and `_/social/2026-10-28-launch/`. Mobile: low tier keeps one place, textures pre-upload, 30 fps idle rest; `?stats` exposes modules for profiling production builds.
 
 - 2026-10-28 (evening): production polish merged for all four places (kits: `forest-kit.glb` 328 KB, `dunes-kit.glb` 28 KB, Quaternius CC0; build scripts under `scripts/`). Skin tone is fair (`SKIN_COLOR #edd6c4`). Depth of field subtle, vignette darkness exactly 1. Icon font class rule lives in style.css (fonts self-hosted). Final matrix: 32 cells, zero errors, both tiers at the 60 Hz cap.
@@ -41,7 +42,7 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 - Places polish if wanted: a crossfade between places (today it is a hard swap after an async compile), a social capture per place, the pier is 4 m wide (flat 2.0 m, contract asks 2.5 m; the light pool still fits).
 - Low-tier devices: measure the sky-probe PMREM cost on a real phone (now only the settled frame refreshes on low).
 - bilal.glb is 3.0 MB raw / 2.1 MB brotli on the wire (0.9 MB raw animation floats are the next trim: compress animation only, quantize off, verify soles).
-- loader.webp is an animation (88 KB); 40 KB needs dropping frames.
+- Loader: re-run `scripts/trace-outline.mjs` after any change to the default look, the pose or the camera; the live re-trace (shared links, `?p=`) still swaps the path at 98 % with no crossfade.
 - Per-garment colour customisation needs material cloning and a design first.
 
 ## Do not touch

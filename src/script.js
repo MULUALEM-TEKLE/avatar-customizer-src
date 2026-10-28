@@ -15,10 +15,11 @@ import * as state from "./modules/state.js"
 import * as audio from "./modules/audio.js"
 import * as controls from "./modules/controls.js"
 import * as loadingScreen from "./modules/loadingScreen.js"
+import * as outline from "./modules/outline.js"
 import * as persistence from "./modules/persistence.js"
 import { loadGLTF } from "./modules/loadingManager.js"
 import { mountPhotoMode } from "./modules/photoMode.js"
-import { mountUI, setQualityLabel } from "./modules/ui.js"
+import { mountUI, openWardrobe, setQualityLabel } from "./modules/ui.js"
 import { mountKeyboard } from "./modules/keyboard.js"
 import { announce, fatal } from "./modules/notify.js"
 
@@ -51,6 +52,8 @@ async function boot() {
 
 	currentTierName = guessTier()
 	world.setupWorld({ canvas, tier: currentTierName })
+	// The loading screen's outline follows the camera from here on.
+	loadingScreen.track(world.camera)
 	applyPreset(readInitialScene(), { animate: false })
 
 	let gltf
@@ -81,8 +84,11 @@ async function boot() {
 	const tier = world.currentTier()
 	const root = character.buildCharacter(gltf, { castShadow: tier.shadows })
 	world.scene.add(root)
+	// Frozen on the first frame of the pose until the reveal, so the figure
+	// stands exactly in its outline when the dark lifts.
+	character.setAnimationSpeed(0)
 
-	restoreSession()
+	const customized = restoreSession()
 
 	// Only now is the model dressed, so this is the first moment the soles are
 	// where they will actually be.
@@ -97,6 +103,7 @@ async function boot() {
 		camera: world.camera,
 		subject: character.getRoot,
 	})
+	controls.beginEntrance()
 
 	mountPhotoMode({
 		renderer: world.renderer,
@@ -141,12 +148,41 @@ async function boot() {
 	// Textures upload now too, under the loading screen, not on the first frames.
 	world.warmTextures(world.scene)
 
+	// The inlined outline is the default look, or the saved session's own
+	// (index.html swaps it in before the first paint). Anything else, a shared
+	// link or an asked pose, gets its silhouette now that the figure is dressed
+	// and compiled. A matching outline keeps its path: a re-trace would only
+	// shift it by sampling noise, and that shift would read as a tick.
+	const cached = document.getElementById("loading-figure")?.dataset.cached === "1"
+	const traceLive = customized && !cached
+	if (traceLive) loadingScreen.setOutline(outline.silhouette({ renderer: world.renderer, scene: world.scene, camera: world.camera, root }))
+
+	// ?entrance=hold keeps the pre-reveal state (frozen pose, pulled-back
+	// camera) for scripts/trace-outline.mjs and for checking the match.
+	const hold = new URLSearchParams(location.search).get("entrance") === "hold"
+	if (!hold) world.setExposureScale(0.08)
+
 	// Start rendering before the loading screen goes, so the reveal uncovers a
 	// live scene rather than the first frame of one.
 	ready = true
 	startLoop()
 
-	await loadingScreen.dismiss()
+	// The entrance, on the loading screen's clock: the dark lifts and the lights
+	// come up on the figure standing dead still in its outline; as the line
+	// dissolves the camera eases in and the model breathes out of it.
+	await loadingScreen.dismiss({
+		onReveal: hold
+			? null
+			: () => {
+					world.fadeExposureIn(2)
+					// Nothing moves until the line has gone: a dolly or a breath under
+					// the outline would pull the figure out of its own drawing.
+					setTimeout(() => {
+						controls.endEntrance(3)
+						character.setAnimationSpeed(1)
+					}, 1700)
+				},
+	})
 
 	// The shell ships `inert` so nothing behind the opaque loading overlay is
 	// tabbable while it is up. Releasing it is the moment the app becomes usable.
@@ -158,6 +194,14 @@ async function boot() {
 	if (document.activeElement === document.body) {
 		canvas.focus({ preventScroll: true })
 	}
+
+	// Last beat of the entrance: the wardrobe slides in and takes the figure
+	// with it (desktop only; phones keep the sheet closed).
+	if (!hold) setTimeout(openWardrobe, 500)
+
+	// A session saved before its outline existed: trace it now, so the next
+	// visit draws this look from the first stroke instead of swapping at 98 %.
+	if (!hold && traceLive) saveOutline(currentSession())
 
 	environment.warmPlaces()
 
@@ -197,6 +241,7 @@ function readInitialTheme() {
 	return saved?.theme && environment.THEMES[saved.theme] ? saved.theme : environment.DEFAULT_THEME
 }
 
+/** Dresses and poses the figure from the saved session; true when that differs from the default look. */
 function restoreSession() {
 	const saved = persistence.readInitial()
 	const outfit = saved?.outfit ? state.deserialize(saved.outfit) : null
@@ -205,21 +250,54 @@ function restoreSession() {
 	else state.applyDefaults()
 
 	const askedPose = new URLSearchParams(location.search).get("p")
-	if (askedPose && character.playPose(askedPose, 0)) return
-	if (saved?.pose) character.playPose(saved.pose, 0)
-	else character.playPose(DEFAULT_ANIMATION, 0)
+	if (askedPose && character.playPose(askedPose, 0)) return true
+	if (saved?.pose) {
+		character.playPose(saved.pose, 0)
+		return !!outfit || saved.pose !== DEFAULT_ANIMATION
+	}
+	character.playPose(DEFAULT_ANIMATION, 0)
+	return !!outfit
 }
 
-export function persistSession() {
-	if (!ready) return
-	const session = {
+function currentSession() {
+	return {
 		outfit: state.serialize(),
 		pose: character.getCurrentClip(),
 		scene: currentPresetName(),
 		theme: environment.currentThemeName(),
 	}
+}
+
+let outlineTimer = 0
+let tracedKey = ""
+let tracedOutline = null
+
+/**
+ * The next load draws this look from its first paint: index.html reads the
+ * outline back from the saved session before any script runs. Traced once the
+ * clicks settle, on the first frame of the pose, from the entrance camera.
+ */
+function saveOutline(session) {
+	const key = `${session.outfit}|${session.pose}`
+	clearTimeout(outlineTimer)
+	outlineTimer = setTimeout(() => {
+		if (key !== tracedKey) {
+			const { d, box } = controls.withEntranceView(() =>
+				character.atFrameZero(() => outline.silhouette({ renderer: world.renderer, scene: world.scene, camera: world.camera, root: character.getRoot() })),
+			)
+			tracedKey = key
+			tracedOutline = { d, box }
+		}
+		persistence.save({ ...session, outline: tracedOutline })
+	}, 800)
+}
+
+export function persistSession() {
+	if (!ready) return
+	const session = currentSession()
 	persistence.save(session)
 	persistence.syncURL(session)
+	saveOutline(session)
 }
 
 state.subscribe(() => persistSession())

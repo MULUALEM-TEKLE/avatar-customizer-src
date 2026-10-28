@@ -516,7 +516,7 @@ function recallControl() {
 	return els.toggle.offsetParent === null ? els.recall : els.toggle
 }
 
-function setPanel(open, { silent = false } = {}) {
+function setPanel(open, { silent = false, quiet = silent } = {}) {
 	if (open === panelOpen && !silent) return
 	const cameFromInside = els.panel.contains(document.activeElement)
 	panelOpen = open
@@ -547,7 +547,16 @@ function setPanel(open, { silent = false } = {}) {
 		els.panel.inert = true
 	}
 
-	if (!silent) announce(open ? "Wardrobe expanded." : "Wardrobe collapsed.")
+	if (!quiet) announce(open ? "Wardrobe expanded." : "Wardrobe collapsed.")
+}
+
+/**
+ * The entrance: the figure loads and is revealed dead centre, then on wide
+ * screens the wardrobe slides in and the framing carries the figure over to
+ * the uncovered half. Not announced: nothing the user did.
+ */
+export function openWardrobe() {
+	if (!panelOpen && window.matchMedia("(min-width: 1024px)").matches) setPanel(true, { quiet: true })
 }
 
 const isPhone = () => window.matchMedia("(max-width: 767px)").matches
@@ -821,9 +830,9 @@ export function mountUI(options = {}) {
 	})
 
 	buildShortcuts()
-	// `silent` on the very first call: nothing has changed yet, so announcing
-	// "Wardrobe expanded" at boot would be reporting an event that never happened.
-	setPanel(window.matchMedia("(min-width: 1024px)").matches, { silent: true })
+	// Closed at boot on every screen, so the figure is revealed centred where
+	// the loading screen drew it; openWardrobe() slides the panel in afterwards.
+	setPanel(false, { silent: true })
 
 	let framingFrame = 0
 	window.addEventListener("resize", () => {

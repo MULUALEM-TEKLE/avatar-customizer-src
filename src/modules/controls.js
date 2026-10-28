@@ -1,4 +1,5 @@
 import * as THREE from "three"
+import gsap from "gsap"
 import { CAMERA } from "./config.js"
 
 /**
@@ -35,6 +36,8 @@ const TAP_SLOP = { mouse: 6, pen: 6, touch: 10 }
 const TAP_MS = 400
 const AUTO_ROTATE_SPEED = 0.1
 const AUTO_ROTATE_DELAY = 20
+/** The loading screen's outline is traced at this pull-back; the reveal dollies home. */
+const ENTRANCE_PULL = 1.08
 
 let canvas = null
 let camera = null
@@ -60,6 +63,7 @@ let pinchDistanceStart = 0
 let keyDirection = 0
 let keyFast = false
 let idleTime = 0
+let entrance = null
 /** Renders place the camera themselves; the turntable then only turns the figure. */
 let externalCamera = false
 
@@ -72,6 +76,9 @@ function pinchSpan() {
 
 function wake() {
 	idleTime = 0
+	// A hand on the camera ends the entrance dolly where it is.
+	entrance?.kill()
+	entrance = null
 }
 
 /* ------------------------------------------------------------- gestures */
@@ -237,6 +244,44 @@ export function setExternalCamera(enabled) {
 }
 
 /* ----------------------------------------------------------------- api */
+
+/** Before the reveal: pulled back, no easing, so the frozen frame matches the traced outline. */
+export function beginEntrance() {
+	distance = distanceTarget = HOME_DISTANCE * ENTRANCE_PULL
+	updateControls(0)
+}
+
+/** The reveal: a slow dolly home. */
+export function endEntrance(duration = 2.8) {
+	if (reduceMotion) {
+		distanceTarget = HOME_DISTANCE
+		return
+	}
+	entrance = gsap.to({ d: distanceTarget }, {
+		d: HOME_DISTANCE,
+		duration,
+		ease: "power3.out",
+		onUpdate() {
+			distanceTarget = this.targets()[0].d
+		},
+	})
+}
+
+/** Runs `fn` with the turntable and the dolly as the next load will have them, then puts them back. */
+export function withEntranceView(fn) {
+	const saved = { yaw, distance, distanceTarget }
+	yaw = 0
+	distance = distanceTarget = HOME_DISTANCE * ENTRANCE_PULL
+	updateControls(0)
+	try {
+		return fn()
+	} finally {
+		yaw = saved.yaw
+		distance = saved.distance
+		distanceTarget = saved.distanceTarget
+		updateControls(0)
+	}
+}
 
 export function reset() {
 	yaw = 0

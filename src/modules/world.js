@@ -431,6 +431,17 @@ export function hasDepthOfField() {
 
 /* --------------------------------------------------------------- frame */
 
+/** The entrance brings the lights up: a scale on the preset's exposure. */
+let exposureScale = 1
+export function setExposureScale(scale) {
+	exposureScale = scale
+	renderer.toneMappingExposure = LIVE.exposure * scale
+}
+
+export function fadeExposureIn(duration) {
+	gsap.to({ k: exposureScale }, { k: 1, duration, ease: "power2.out", onUpdate() { setExposureScale(this.targets()[0].k) } })
+}
+
 export function render() {
 	if (bokehPass) bokehPass.uniforms.focus.value = camera.position.distanceTo(FOCUS_POINT)
 	if (composer) composer.render()
@@ -479,7 +490,7 @@ export function setupWorld({ canvas, tier: tierName = "medium" }) {
 
 	// Scalars have to be pushed; colours are shared instances and update themselves.
 	onPreset((live) => {
-		renderer.toneMappingExposure = live.exposure
+		renderer.toneMappingExposure = live.exposure * exposureScale
 		renderer.setClearColor(live.skyTop, 1)
 
 		key.intensity = live.keyIntensity

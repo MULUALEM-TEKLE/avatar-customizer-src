@@ -4,6 +4,7 @@
  * fallback for "what was I wearing last time".
  */
 
+// index.html reads this key too, inline, for the saved session's outline.
 const STORAGE_KEY = "avatar-customizer:v1"
 const WRITE_DELAY = 400
 

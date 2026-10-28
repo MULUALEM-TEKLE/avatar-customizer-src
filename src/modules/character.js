@@ -217,6 +217,20 @@ export function setAnimationSpeed(scale) {
 	if (mixer) mixer.timeScale = scale
 }
 
+/** Runs `fn` with the current clip on its first frame, which is what the next load shows, then puts the time back. */
+export function atFrameZero(fn) {
+	if (!currentAction || !mixer) return fn()
+	const time = currentAction.time
+	currentAction.time = 0
+	mixer.update(0)
+	try {
+		return fn()
+	} finally {
+		currentAction.time = time
+		mixer.update(0)
+	}
+}
+
 /** Advance the clips by `seconds` regardless of timeScale (frame-exact renders). */
 export function stepAnimation(seconds) {
 	if (!mixer) return
