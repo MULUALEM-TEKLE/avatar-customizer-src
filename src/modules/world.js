@@ -3,6 +3,7 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js"
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js"
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js"
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js"
+import gsap from "gsap"
 
 import { CAMERA } from "./config.js"
 import { LIVE, TIERS, onPreset } from "./presets.js"
@@ -239,6 +240,46 @@ export function resize(force = false) {
 
 	camera.aspect = width / height
 	camera.updateProjectionMatrix()
+	applyFraming()
+}
+
+/* -------------------------------------------------------------- framing */
+
+/**
+ * Where the figure sits on screen, as fractions of the viewport. The wardrobe
+ * covers part of the viewport, so the camera's principal point moves to the
+ * centre of what is left. It is a lens shift (setViewOffset), not a pan: the
+ * perspective on the figure is unchanged, the image just slides. Photo mode
+ * clears the offset for the export and puts it back.
+ */
+const framing = { x: 0.5, y: 0.5 }
+let framingTween = null
+
+function applyFraming() {
+	if (!camera || !lastWidth || !lastHeight) return
+	// Positive offset moves the view window right in the virtual frame, which
+	// moves the world's centre left on screen.
+	const dx = (0.5 - framing.x) * lastWidth
+	const dy = (0.5 - framing.y) * lastHeight
+	if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) camera.clearViewOffset()
+	else camera.setViewOffset(lastWidth, lastHeight, dx, dy, lastWidth, lastHeight)
+}
+
+export function setFraming({ x = 0.5, y = 0.5 }, { animate = true } = {}) {
+	framingTween?.kill()
+	if (!animate) {
+		framing.x = x
+		framing.y = y
+		applyFraming()
+		return
+	}
+	framingTween = gsap.to(framing, {
+		x,
+		y,
+		duration: 0.5,
+		ease: "power2.inOut",
+		onUpdate: applyFraming,
+	})
 }
 
 /* ------------------------------------------------------------- composer */

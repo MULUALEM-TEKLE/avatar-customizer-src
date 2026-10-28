@@ -111,6 +111,8 @@ export async function capture({
 		cssHeight: canvas.style.height,
 		pixelRatio: renderer.getPixelRatio(),
 		aspect: camera.aspect,
+		// The on-screen lens shift (wardrobe framing) must not reach the export.
+		view: camera.view?.enabled ? { ...camera.view } : null,
 		clearAlpha: renderer.getClearAlpha(),
 		background: scene.background,
 		backdropVisible: backdrop?.visible ?? true,
@@ -133,6 +135,7 @@ export async function capture({
 		// setRenderSize, not renderer.setSize: on the High tier the composer owns
 		// the render targets and would otherwise stay at viewport resolution.
 		deps.setRenderSize(width, height, 1)
+		camera.clearViewOffset()
 		camera.aspect = width / height
 		camera.updateProjectionMatrix()
 
@@ -156,6 +159,10 @@ export async function capture({
 		canvas.style.height = previous.cssHeight
 		camera.aspect = previous.aspect
 		camera.updateProjectionMatrix()
+		if (previous.view) {
+			const v = previous.view
+			camera.setViewOffset(v.fullWidth, v.fullHeight, v.offsetX, v.offsetY, v.width, v.height)
+		}
 		deps.setPaused?.(false)
 		document.body.classList.remove("is-capturing")
 		render()

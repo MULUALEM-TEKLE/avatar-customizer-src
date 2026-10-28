@@ -167,7 +167,10 @@ function isWebGLAvailable() {
 
 /* -------------------------------------------------------------- session */
 
+/** `?t=night` in the search string is an explicit ask, like `?q=` for the tier. */
 function readInitialScene() {
+	const asked = new URLSearchParams(location.search).get("t")
+	if (asked && PRESETS[asked]) return asked
 	const saved = persistence.readInitial()
 	return saved?.scene && PRESETS[saved.scene] ? saved.scene : "dusk"
 }

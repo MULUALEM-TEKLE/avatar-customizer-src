@@ -12,6 +12,7 @@ import * as character from "./character.js"
 import * as photoMode from "./photoMode.js"
 import * as persistence from "./persistence.js"
 import * as environment from "./env/index.js"
+import * as world from "./world.js"
 import {
 	applyPreset as applyScene,
 	currentPresetName,
@@ -524,6 +525,7 @@ function setPanel(open, { silent = false } = {}) {
 	els.toggle.setAttribute("aria-expanded", String(open))
 	els.recall.setAttribute("aria-expanded", String(open))
 	document.body.classList.toggle("panel-open", open)
+	updateFraming({ animate: !silent })
 
 	if (open) {
 		els.panel.inert = false
@@ -550,6 +552,29 @@ function setPanel(open, { silent = false } = {}) {
 
 const isPhone = () => window.matchMedia("(max-width: 767px)").matches
 
+/**
+ * Keep the figure centred in the part of the viewport the wardrobe leaves
+ * uncovered. offsetLeft/offsetTop are layout values and ignore the slide
+ * transform, so this reads the panel's resting place even mid-transition.
+ * The shift is capped: a bottom sheet can cover most of a phone screen, and
+ * centring in the sliver left would push the head off the top.
+ */
+function updateFraming({ animate = true } = {}) {
+	const vw = document.documentElement.clientWidth
+	const vh = document.documentElement.clientHeight
+	let x = 0.5
+	let y = 0.5
+	if (panelOpen && els.panel && vw && vh) {
+		const fullWidth = els.panel.offsetWidth >= vw - 1
+		if (fullWidth) {
+			y = Math.max(0.4, els.panel.offsetTop / 2 / vh)
+		} else {
+			x = Math.max(0.2, els.panel.offsetLeft / 2 / vw)
+		}
+	}
+	world.setFraming({ x, y }, { animate })
+}
+
 /** Phone only: one category at a time, with the sheet header naming it. */
 function showCategory(key) {
 	activeCategory = key
@@ -569,6 +594,8 @@ function showCategory(key) {
 		section.classList.toggle("section--active", otherKey === key)
 	}
 	els.extras.classList.toggle("extras--active", key === EXTRAS_KEY)
+	// The sheet's height follows its content on phones.
+	if (els.panel) updateFraming({ animate: false })
 }
 
 export function focusCategory(index) {
@@ -795,6 +822,12 @@ export function mountUI(options = {}) {
 	// `silent` on the very first call: nothing has changed yet, so announcing
 	// "Wardrobe expanded" at boot would be reporting an event that never happened.
 	setPanel(window.matchMedia("(min-width: 1024px)").matches, { silent: true })
+
+	let framingFrame = 0
+	window.addEventListener("resize", () => {
+		cancelAnimationFrame(framingFrame)
+		framingFrame = requestAnimationFrame(() => updateFraming({ animate: false }))
+	})
 
 	// The masthead and the category strip swap roles at the phone breakpoint.
 	window.matchMedia("(max-width: 767px)").addEventListener("change", () => {
