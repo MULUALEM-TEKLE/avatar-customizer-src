@@ -27,7 +27,7 @@ import { announce, fatal } from "./modules/notify.js"
  * Only ever used as a progress denominator, never to decide what to fetch.
  */
 const EXPECTED_BYTES = {
-	character: 3_210_340,
+	character: 2_967_912,
 }
 
 let currentTierName = "medium"
