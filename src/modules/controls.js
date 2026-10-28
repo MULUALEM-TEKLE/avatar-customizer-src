@@ -60,6 +60,8 @@ let pinchDistanceStart = 0
 let keyDirection = 0
 let keyFast = false
 let idleTime = 0
+/** Renders place the camera themselves; the turntable then only turns the figure. */
+let externalCamera = false
 
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi)
 
@@ -224,8 +226,14 @@ export function updateControls(delta) {
 	const subject = getSubject()
 	if (subject) subject.rotation.y = yaw
 
+	if (externalCamera) return
 	camera.position.set(FOCUS.x, FOCUS.y, FOCUS.z + distance)
 	camera.lookAt(FOCUS)
+}
+
+/** Frame-exact renders: hand the camera to the caller (position, lookAt, fov). */
+export function setExternalCamera(enabled) {
+	externalCamera = enabled
 }
 
 /* ----------------------------------------------------------------- api */
