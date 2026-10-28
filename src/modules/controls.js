@@ -273,6 +273,11 @@ export function setKeySpin(direction, { fast = false } = {}) {
 	if (direction) wake()
 }
 
+/** True when nothing has touched the camera for `seconds`. */
+export function isIdle(seconds) {
+	return mode === "idle" && !keyDirection && idleTime >= seconds
+}
+
 /** Escape mid-gesture aborts it and leaves the avatar where it is. */
 export function cancelGesture() {
 	for (const id of pointers.keys()) canvas.releasePointerCapture?.(id)

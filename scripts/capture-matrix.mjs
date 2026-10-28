@@ -6,7 +6,7 @@
  *
  *   node scripts/capture-matrix.mjs --url http://localhost:5173 --out _/shots/<dir>/raw \
  *        [--tier high] [--places harbor,rooftop,forest,dunes] [--presets dawn,noon,dusk,night]
- *        [--pose DynamicPose] [--mask] [--viewport 390x844]
+ *        [--pose DynamicPose] [--mask] [--viewport 390x844] [--dpr 3] [--cpu 4]
  *
  * --pose pins a clip (DynamicPose is static, so captures line up pixel for
  * pixel); --mask hides the backdrop and clears to magenta, which gives a
@@ -29,6 +29,8 @@ const PRESETS = arg("--presets", "dawn,noon,dusk,night").split(",")
 const POSE = arg("--pose", "")
 const MASK = process.argv.includes("--mask")
 const [VW, VH] = arg("--viewport", "1440x900").split("x").map(Number)
+const DPR = Number(arg("--dpr", 1))
+const CPU = Number(arg("--cpu", 1))
 const CHROME =
 	process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 const PORT = 9333 + Math.floor(Math.random() * 500)
@@ -104,16 +106,22 @@ const MASK_SETUP = `(async () => {
 
 const STATS = `(async () => {
 	const u = performance.getEntriesByType("resource").map((e) => e.name).find((n) => /\\/modules\\/world\\.js(\\?|$)/.test(n))
-	const w = await import(u)
+	// Production builds have no module URLs; the app exposes them under ?stats.
+	const w = u ? await import(u) : window.__avatar.world
 	w.renderer.info.autoReset = false
 	w.renderer.info.reset()
 	const t0 = performance.now()
 	let n = 0
-	await new Promise((r) => { const f = () => (++n >= 30 ? r() : requestAnimationFrame(f)); requestAnimationFrame(f) })
+	const deltas = []
+	let last = t0
+	await new Promise((r) => { const f = (now) => { deltas.push(now - last); last = now; (++n >= 60 ? r() : requestAnimationFrame(f)) }; requestAnimationFrame(f) })
 	const ms = (performance.now() - t0) / n
+	deltas.shift()
+	deltas.sort((a, b) => a - b)
+	const p95 = deltas[Math.floor(deltas.length * 0.95)]
 	const i = w.renderer.info.render
 	w.renderer.info.autoReset = true
-	return JSON.stringify({ calls: Math.round(i.calls / n), tris: Math.round(i.triangles / n), ms: +ms.toFixed(1) })
+	return JSON.stringify({ calls: Math.round(i.calls / n), tris: Math.round(i.triangles / n), ms: +ms.toFixed(1), p95: +p95.toFixed(1), mem: w.renderer.info.memory })
 })()`
 
 async function main() {
@@ -125,9 +133,10 @@ async function main() {
 	await cdp.send("Emulation.setDeviceMetricsOverride", {
 		width: VW,
 		height: VH,
-		deviceScaleFactor: 1,
+		deviceScaleFactor: DPR,
 		mobile: VW < 768,
 	})
+	if (CPU > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU })
 	fs.mkdirSync(OUT, { recursive: true })
 
 	const rows = []
@@ -135,7 +144,7 @@ async function main() {
 		for (const preset of PRESETS) {
 			cdp.errors = 0
 			const pose = POSE ? `&p=${POSE}` : ""
-			await cdp.send("Page.navigate", { url: `${BASE}/?e=${place}&t=${preset}&q=${TIER}${pose}` })
+			await cdp.send("Page.navigate", { url: `${BASE}/?e=${place}&t=${preset}&q=${TIER}${pose}&stats` })
 			await cdp.send("Runtime.evaluate", { expression: READY, awaitPromise: true })
 			if (MASK) {
 				// Two clear colours: pixels that do not change between them are
@@ -152,8 +161,12 @@ async function main() {
 				awaitPromise: true,
 				returnByValue: true,
 			})
+			if (stats.exceptionDetails) {
+				console.error(`${place}/${preset}: stats failed:`, stats.exceptionDetails.exception?.description || stats.exceptionDetails.text)
+				continue
+			}
 			const shot = await cdp.send("Page.captureScreenshot", { format: "png" })
-			const file = path.join(OUT, `${place}-${preset}-${TIER}${POSE ? "-" + POSE : ""}${MASK ? "-maskB" : ""}${VW !== 1440 ? `-${VW}x${VH}` : ""}.png`)
+			const file = path.join(OUT, `${place}-${preset}-${TIER}${POSE ? "-" + POSE : ""}${MASK ? "-maskB" : ""}${VW !== 1440 ? `-${VW}x${VH}` : ""}${CPU > 1 ? `-cpu${CPU}` : ""}.png`)
 			fs.writeFileSync(file, Buffer.from(shot.data, "base64"))
 			const s = JSON.parse(stats.result.value)
 			rows.push({ place, preset, tier: TIER, ...s, errors: cdp.errors, file })
@@ -163,6 +176,8 @@ async function main() {
 				`calls ${s.calls}`.padEnd(11),
 				`tris ${s.tris}`.padEnd(13),
 				`${s.ms} ms/frame`.padEnd(14),
+				`p95 ${s.p95}`.padEnd(10),
+				`geo ${s.mem?.geometries} tex ${s.mem?.textures}`,
 				cdp.errors ? `ERRORS ${cdp.errors}` : "",
 			)
 		}

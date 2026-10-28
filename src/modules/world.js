@@ -397,6 +397,27 @@ export function currentTier() {
 	return tier
 }
 
+/**
+ * Upload every texture under `root` to the GPU now, instead of on the first
+ * frame that draws it. On a phone the first frames after the reveal were spent
+ * in texImage2D for the garments.
+ */
+export function warmTextures(root) {
+	const seen = new Set()
+	root.traverse((o) => {
+		const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : []
+		for (const m of mats) {
+			for (const key of ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap", "alphaMap"]) {
+				const t = m[key]
+				if (t && !seen.has(t)) {
+					seen.add(t)
+					renderer.initTexture(t)
+				}
+			}
+		}
+	})
+}
+
 /** The frame timer calls this when the high tier cannot afford the depth pass. */
 export function setDepthOfField(enabled) {
 	if (dofEnabled === enabled) return

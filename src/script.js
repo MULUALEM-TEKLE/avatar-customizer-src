@@ -138,6 +138,8 @@ async function boot() {
 	// main thread for about two seconds with the progress bar frozen at 98%.
 	// Parallel compile keeps the loading screen alive and finishes sooner.
 	await world.renderer.compileAsync(world.scene, world.camera)
+	// Textures upload now too, under the loading screen, not on the first frames.
+	world.warmTextures(world.scene)
 
 	// Start rendering before the loading screen goes, so the reveal uncovers a
 	// live scene rather than the first frame of one.
@@ -158,6 +160,12 @@ async function boot() {
 	}
 
 	environment.warmPlaces()
+
+	// ?stats exposes the modules for the capture and profiling scripts, which
+	// otherwise can only reach them on the dev server.
+	if (new URLSearchParams(location.search).has("stats")) {
+		window.__avatar = { world, environment, character, controls, state }
+	}
 }
 
 function isWebGLAvailable() {
@@ -249,9 +257,16 @@ function sampleFrameCost(deltaMs) {
 	tierSettled = true
 }
 
-function tick() {
+let lastRenderAt = 0
+
+function tick(now = performance.now()) {
 	requestAnimationFrame(tick)
 	if (paused) return
+
+	// The low tier rests at a lower rate while idle; a touch wakes full rate.
+	const idleFps = world.currentTier().idleFps
+	if (idleFps && controls.isIdle(1) && now - lastRenderAt < 1000 / idleFps - 2) return
+	lastRenderAt = now
 
 	timer.update()
 	const delta = timer.getDelta()

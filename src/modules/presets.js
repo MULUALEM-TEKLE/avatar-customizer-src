@@ -349,6 +349,8 @@ export const TIERS = {
 		bloom: null,
 		detail: 0,
 		starLayers: 1,
+		/** Rest at 30 fps when nobody is touching the camera: phone battery and heat. */
+		idleFps: 30,
 	},
 }
 

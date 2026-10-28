@@ -1,6 +1,7 @@
-import { scene, backdrop, camera, renderer, currentTier } from "../world.js"
+import { scene, backdrop, camera, renderer, currentTier, warmTextures } from "../world.js"
 import { LIVE, onPreset } from "../presets.js"
 import * as sky from "./sky.js"
+import { disposeGroup } from "./lib.js"
 import harbor from "./harbor.js"
 import rooftop from "./rooftop.js"
 import forest from "./forest.js"
@@ -84,9 +85,18 @@ export function mountEnvironment({ floorHeight = -0.9, theme = DEFAULT_THEME } =
 }
 
 function show(next, name) {
-	if (current && current !== next) backdrop.remove(current.group)
+	if (current && current !== next) {
+		backdrop.remove(current.group)
+		// Low keeps only the place on screen: a phone has no memory for four.
+		if (currentTier().detail === 0) {
+			current.dispose?.()
+			disposeGroup(current.group)
+			places.delete(currentName)
+		}
+	}
 	current = next
 	currentName = name
+	warmTextures(current.group)
 	backdrop.add(current.group)
 	sky.setGroundColor(current.groundColor ?? 0x202024)
 	applyFog(LIVE)
@@ -181,6 +191,7 @@ export function warmPlaces() {
 		const place = obtain(name)
 		Promise.resolve(place.ready)
 			.then(() => renderer.compileAsync(place.group, camera, scene))
+			.then(() => warmTextures(place.group))
 			.catch(console.error)
 			.finally(() => setTimeout(step, 600))
 	}
