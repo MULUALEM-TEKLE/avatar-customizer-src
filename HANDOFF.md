@@ -1,6 +1,6 @@
 # Handoff
 
-Updated: 2026-10-28 18:10, polish round in flight (b8dfdf7 on master), session: places
+Updated: 2026-10-28 20:10, launch video in flight (4a31469 storyboard, c58db08 on master), session: places
 
 ## Goal
 
@@ -8,13 +8,15 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## In flight
 
-- master (orchestrator): four polish workers in worktrees (harbor, rooftop, forest, dunes) finishing a production pass; orchestrator merges, runs `node scripts/capture-matrix.mjs` high+low, deploys, reports.
+- master (orchestrator): launch video. Two workers in worktrees: `scripts/launch-video/synth.mjs` (melodic techno at 124 BPM, writes `_/launch/track.wav`) and `scripts/launch-video/render.mjs` + `assemble.sh` (frame-exact render of `storyboard.json` against a dev server, ffmpeg assembly to `_/launch/launch.mp4`). Then: review the cut, re-assemble with the track, social export, and hand link + stills + video to the portfolio (xar-highlights) agent.
 
 ## Blocked / waiting
 
 - Asset trims need an owner decision (see Next). Nothing else.
 
 ## Decisions (last 2 weeks)
+
+- 2026-10-28 (evening): production polish merged for all four places (kits: `forest-kit.glb` 328 KB, `dunes-kit.glb` 28 KB, Quaternius CC0; build scripts under `scripts/`). Skin tone is fair (`SKIN_COLOR #edd6c4`). Depth of field subtle, vignette darkness exactly 1. Icon font class rule lives in style.css (fonts self-hosted). Final matrix: 32 cells, zero errors, both tiers at the 60 Hz cap.
 
 - 2026-10-28 (afternoon): camera-side front light per preset; time-of-day console button (phones had it only inside the sheet); places cached and warmed after the reveal, swaps dip to the fog colour (~260 ms); depth of field + vignette on high (subtle; frame timer drops the blur above 17.5 ms); fonts self-hosted (26-icon subset); loader is a transparent turntable rendered by `scripts/render-loader.mjs`; garments declare body-region coverage and the self-check walks all 8,640 outfits; forest rebuilt from Quaternius CC0 kits (`scripts/build-forest-kit.mjs`, 307 KB GLB).
 
