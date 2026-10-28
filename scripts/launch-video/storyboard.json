@@ -3,29 +3,36 @@
 	"fps": 30,
 	"width": 1920,
 	"height": 1080,
-	"notes": "Times are in bars (1 bar = 4 beats = 1.9355 s at 124 BPM). Every cut lands on a bar line; half-bar cuts in the montage land on beat 3. Scenes render frame by frame; the character animation is stepped 1/fps per frame.",
-	"scenes": [
+	"bars": 26,
+	"notes": "Times in bars (1 bar = 4 beats = 1.9355 s at 124 BPM; 1 beat = 0.4839 s). Every cut is a HARD cut on the grid: no dip, no fade. The character's animation is one continuous timeline stepped 1/fps per frame across all cuts; only place, light and outfit change on a cut. The camera moves continuously through a section (yaw and dolly interpolated over the section), never resets on a cut. UI (panel, console, caption) hidden unless stated. Looks: commuter, downpour, offshift, deckhand, basics, layered. Presets: dawn, noon, dusk, night. Places: harbor, rooftop, forest, dunes.",
+	"sections": [
 		{ "bars": [0, 2], "type": "title", "title": "Bilal", "sub": "Autumn/Winter — a configurable wardrobe.", "fadeIn": 0.5, "fadeOut": 0.25 },
-		{ "bars": [2, 4], "type": "loader", "place": "harbor", "preset": "dusk", "notes": "The real loading screen: progress runs 0 to 100 over the two bars, dismiss on bar 4 so the reveal lands on the downbeat." },
-		{ "bars": [4, 6], "type": "hero", "place": "harbor", "preset": "dusk", "look": "commuter", "pose": "Male_Idle1", "ui": false, "yaw": [-0.35, 0.25], "zoom": [2.75, 2.3] },
-		{ "bars": [6, 8], "type": "hero", "place": "harbor", "preset": "night", "look": "commuter", "pose": "Male_Idle1", "ui": false, "yaw": [0.25, 0.6], "zoom": [2.3, 2.1], "caption": "Four places." },
-		{ "bars": [8, 10], "type": "hero", "place": "rooftop", "preset": "dawn", "look": "offshift", "pose": "Male_Idle2", "ui": false, "yaw": [0.4, -0.2], "zoom": [2.6, 2.4], "caption": "Four hours of light." },
-		{ "bars": [10, 12], "type": "hero", "place": "rooftop", "preset": "night", "look": "offshift", "pose": "Male_Idle2", "ui": false, "yaw": [-0.2, -0.6], "zoom": [2.4, 2.0] },
-		{ "bars": [12, 16], "type": "wardrobe", "place": "forest", "preset": "noon", "pose": "Male_Idle1", "ui": true, "yaw": [0, 0.3], "zoom": [2.75, 2.75], "cuts": [
-			{ "bar": 12, "look": "basics" }, { "bar": 13, "select": ["hoodies", 1] }, { "bar": 14, "select": ["hoodies", 3] }, { "bar": 14.5, "select": ["pants", 2] }, { "bar": 15, "select": ["jackets", 0], "preset": "dusk" }
-		], "caption": "Every garment, every combination." },
-		{ "bars": [16, 18], "type": "hero", "place": "dunes", "preset": "dawn", "look": "deckhand", "pose": "MagicSpell", "ui": false, "yaw": [0.2, 0.2], "zoom": [2.75, 2.4], "caption": "Pose it." },
-		{ "bars": [18, 20], "type": "hero", "place": "dunes", "preset": "dusk", "look": "deckhand", "pose": "Flying", "ui": false, "yaw": [0.2, -0.3], "zoom": [2.4, 3.2] },
-		{ "bars": [20, 24], "type": "montage", "half": true, "ui": false, "cuts": [
-			{ "place": "harbor", "preset": "dawn", "look": "layered", "pose": "Victory" },
-			{ "place": "rooftop", "preset": "dusk", "look": "downpour", "pose": "Sad_Idle" },
-			{ "place": "forest", "preset": "night", "look": "offshift", "pose": "DynamicPose" },
-			{ "place": "dunes", "preset": "noon", "look": "basics", "pose": "Male_Idle2" },
-			{ "place": "harbor", "preset": "noon", "look": "deckhand", "pose": "Defeat" },
-			{ "place": "rooftop", "preset": "dawn", "look": "commuter", "pose": "Falling_to_Landing" },
-			{ "place": "forest", "preset": "dusk", "look": "layered", "pose": "Floating" },
-			{ "place": "dunes", "preset": "night", "look": "downpour", "pose": "Male_Idle1" }
-		], "caption": "Capture it. Share it." },
-		{ "bars": [24, 26], "type": "title", "title": "Bilal", "sub": "avatar-customizer.mulualemxar.workers.dev", "fadeIn": 0.5, "fadeOut": 0.75 }
+		{ "bars": [2, 4], "type": "loader", "place": "harbor", "preset": "dusk", "notes": "The real loading screen under throttling, time-stretched to exactly two bars; the reveal lands on bar 4." },
+		{ "bars": [4, 8], "type": "hero", "place": "harbor", "preset": "dusk", "look": "commuter", "clip": "Male_Idle1", "yaw": [-0.4, 0.35], "zoom": [2.9, 2.25], "caption": { "text": "Four places. Four hours of light.", "at": 5, "for": 2.5 } },
+		{ "bars": [8, 16], "type": "cycle", "clip": "Male_Idle1", "cutEvery": 1, "cutUnit": "beat", "yaw": [0.35, 0.9], "zoom": [2.25, 2.05],
+		  "notes": "32 cuts, one per beat. Each bar is one place; each beat in the bar changes light and look. Animation and camera continue across the cuts.",
+		  "bars_plan": [
+			{ "bar": 8, "place": "harbor", "beats": [["dusk", "commuter"], ["night", "layered"], ["dawn", "offshift"], ["noon", "deckhand"]] },
+			{ "bar": 9, "place": "rooftop", "beats": [["night", "commuter"], ["dusk", "downpour"], ["dawn", "basics"], ["noon", "layered"]] },
+			{ "bar": 10, "place": "forest", "beats": [["noon", "offshift"], ["dawn", "deckhand"], ["dusk", "layered"], ["night", "commuter"]] },
+			{ "bar": 11, "place": "dunes", "beats": [["dawn", "deckhand"], ["dusk", "basics"], ["noon", "downpour"], ["night", "offshift"]] },
+			{ "bar": 12, "place": "harbor", "beats": [["night", "downpour"], ["dawn", "layered"], ["dusk", "basics"], ["noon", "commuter"]] },
+			{ "bar": 13, "place": "rooftop", "beats": [["dusk", "offshift"], ["night", "deckhand"], ["noon", "commuter"], ["dawn", "downpour"]] },
+			{ "bar": 14, "place": "forest", "beats": [["dusk", "basics"], ["noon", "layered"], ["night", "offshift"], ["dawn", "commuter"]] },
+			{ "bar": 15, "place": "dunes", "beats": [["noon", "deckhand"], ["night", "layered"], ["dawn", "downpour"], ["dusk", "offshift"]] }
+		  ],
+		  "caption": { "text": "Every garment. Every place.", "at": 8, "for": 3 } },
+		{ "bars": [16, 20], "type": "cycle", "clip": "MagicSpell", "clipStartsAt": 16, "cutEvery": 2, "cutUnit": "beat", "yaw": [0.9, 0.2], "zoom": [2.05, 2.6],
+		  "notes": "The Cast gesture plays once (4.25 s ≈ 2.2 bars) then settles into idle; 8 cuts, one every half bar, through the four places at the two warm lights.",
+		  "cuts": [["harbor", "dusk", "layered"], ["rooftop", "dusk", "layered"], ["forest", "dusk", "layered"], ["dunes", "dusk", "layered"], ["dunes", "dawn", "deckhand"], ["forest", "dawn", "deckhand"], ["rooftop", "dawn", "deckhand"], ["harbor", "dawn", "deckhand"]],
+		  "caption": { "text": "Pose it.", "at": 16, "for": 2 } },
+		{ "bars": [20, 22], "type": "cycle", "clip": "Male_Idle2", "cutEvery": 1, "cutUnit": "beat", "yaw": [0.2, -0.4], "zoom": [2.6, 2.3],
+		  "notes": "8 cuts, one per beat: the four places at night then at noon, look fixed (offshift).",
+		  "cuts": [["harbor", "night", "offshift"], ["rooftop", "night", "offshift"], ["forest", "night", "offshift"], ["dunes", "night", "offshift"], ["dunes", "noon", "offshift"], ["forest", "noon", "offshift"], ["rooftop", "noon", "offshift"], ["harbor", "noon", "offshift"]] },
+		{ "bars": [22, 24], "type": "cycle", "clip": "Male_Idle2", "cutEvery": 0.5, "cutUnit": "beat", "yaw": [-0.4, -0.9], "zoom": [2.3, 2.1],
+		  "notes": "16 cuts, one every half beat: all 16 place x light combinations, look fixed (commuter). A strobe through the whole matrix, ending on a hard stop at bar 24.",
+		  "cuts": [["harbor", "dawn", "commuter"], ["rooftop", "dawn", "commuter"], ["forest", "dawn", "commuter"], ["dunes", "dawn", "commuter"], ["harbor", "noon", "commuter"], ["rooftop", "noon", "commuter"], ["forest", "noon", "commuter"], ["dunes", "noon", "commuter"], ["harbor", "dusk", "commuter"], ["rooftop", "dusk", "commuter"], ["forest", "dusk", "commuter"], ["dunes", "dusk", "commuter"], ["harbor", "night", "commuter"], ["rooftop", "night", "commuter"], ["forest", "night", "commuter"], ["dunes", "night", "commuter"]],
+		  "caption": { "text": "Capture it. Share it.", "at": 22, "for": 2 } },
+		{ "bars": [24, 26], "type": "title", "title": "Bilal", "sub": "avatar-customizer.mulualemxar.workers.dev", "fadeIn": 0.3, "fadeOut": 0.75 }
 	]
 }
