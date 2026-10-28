@@ -9,6 +9,7 @@
 export const ASSETS = {
 	character: "/models/bilal.glb",
 	forestKit: "/models/forest-kit.glb",
+	dunesKit: "/models/dunes-kit.glb",
 	clickSfx: "/audios/select.m4a",
 	thumbnail: (meshName) => `/img/${meshName}.webp`,
 }
