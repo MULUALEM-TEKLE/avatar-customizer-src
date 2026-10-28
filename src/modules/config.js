@@ -8,8 +8,6 @@
 
 export const ASSETS = {
 	character: "/models/bilal.glb",
-	environment: "/models/env.glb",
-	envMap: "/hdri/env.hdr",
 	clickSfx: "/audios/select.m4a",
 	thumbnail: (meshName) => `/img/${meshName}.webp`,
 }

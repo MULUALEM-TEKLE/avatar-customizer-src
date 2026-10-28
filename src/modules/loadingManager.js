@@ -1,6 +1,5 @@
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js"
 import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js"
-import { HDRLoader } from "three/addons/loaders/HDRLoader.js"
 
 /**
  * Assets are fetched by hand rather than through THREE.LoadingManager for two
@@ -115,18 +114,6 @@ export async function loadGLTF(url, { onProgress, expectedBytes } = {}) {
 						cause,
 					}),
 				),
-		)
-	})
-}
-
-export function loadHDR(url) {
-	return new Promise((resolve, reject) => {
-		new HDRLoader().load(
-			url,
-			resolve,
-			undefined,
-			(cause) =>
-				reject(new AssetError(url, "could not decode HDR", { kind: "decode", cause })),
 		)
 	})
 }

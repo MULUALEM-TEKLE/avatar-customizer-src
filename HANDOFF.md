@@ -1,6 +1,6 @@
 # Handoff
 
-Updated: 2026-10-28 11:05, after commit "perf: ..." on master, session: fixes-after-merge
+Updated: 2026-10-28 11:50, places framework commit on master, session: places
 
 ## Goal
 
@@ -8,7 +8,7 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## In flight
 
-- none
+- master (orchestrator): places framework landed (`src/modules/env/`). Workers in worktrees build rooftop/forest/dunes/harbor and the load trims; orchestrator does panel-aware camera framing in world.js/ui.js/photoMode.js. Next: merge worker branches, QA matrix (4 places x 4 lights x 3 tiers), deploy.
 
 ## Blocked / waiting
 

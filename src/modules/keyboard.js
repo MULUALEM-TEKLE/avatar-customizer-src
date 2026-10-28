@@ -105,6 +105,12 @@ export const SHORTCUTS = [
 		run: () => ui.cycleScene(),
 	},
 	{
+		keys: ["E"],
+		label: "Next place",
+		match: (k) => k.toLowerCase() === "e",
+		run: () => ui.cycleEnvironment(),
+	},
+	{
 		keys: ["1", "–", "8"],
 		label: "Jump to a wardrobe category",
 		match: (k) => /^[1-8]$/.test(k),

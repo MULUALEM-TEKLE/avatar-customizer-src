@@ -17,6 +17,7 @@ function parseHash(hash = location.hash) {
 		outfit,
 		pose: params.get("p") || null,
 		scene: params.get("t") || null,
+		theme: params.get("e") || null,
 	}
 }
 
@@ -47,11 +48,12 @@ export function save(session) {
 	}, WRITE_DELAY)
 }
 
-export function buildURL({ outfit, pose, scene }) {
+export function buildURL({ outfit, pose, scene, theme }) {
 	const params = new URLSearchParams()
 	params.set("o", outfit)
 	if (pose) params.set("p", pose)
 	if (scene) params.set("t", scene)
+	if (theme) params.set("e", theme)
 	return `${location.origin}${location.pathname}#${params}`
 }
 

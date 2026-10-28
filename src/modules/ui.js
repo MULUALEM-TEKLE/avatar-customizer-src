@@ -11,6 +11,7 @@ import * as controls from "./controls.js"
 import * as character from "./character.js"
 import * as photoMode from "./photoMode.js"
 import * as persistence from "./persistence.js"
+import * as environment from "./env/index.js"
 import {
 	applyPreset as applyScene,
 	currentPresetName,
@@ -344,6 +345,18 @@ function buildFooter() {
 	})
 	els.lightSegment = light
 
+	const place = buildSegment({
+		name: "place",
+		label: "Place",
+		options: environment.THEME_ORDER.map((id) => ({ id, label: environment.THEMES[id].label })),
+		value: environment.currentThemeName() ?? environment.DEFAULT_THEME,
+		onSelect: (id) => {
+			environment.setTheme(id)
+			announce(`${environment.THEMES[id].label}.`)
+		},
+	})
+	els.placeSegment = place
+
 	const quality = buildSegment({
 		name: "quality",
 		label: "Quality",
@@ -366,7 +379,7 @@ function buildFooter() {
 		},
 	})
 
-	footer.append(light.wrap, quality.wrap, aspect.wrap)
+	footer.append(place.wrap, light.wrap, quality.wrap, aspect.wrap)
 	return footer
 }
 
@@ -607,6 +620,11 @@ export function cycleScene() {
 	toast(`LIGHT · ${SCENES[next].label}.`, { icon: "wb_twilight" })
 }
 
+export function cycleEnvironment(delta = 1) {
+	const next = environment.cycleTheme(delta)
+	toast(`PLACE · ${environment.THEMES[next].label}`, { icon: "landscape" })
+}
+
 export async function capturePhoto() {
 	if (document.body.classList.contains("is-capturing")) return
 	const result = await photoMode.download({
@@ -746,6 +764,10 @@ export function mountUI(options = {}) {
 		audio.setVolume(Number(event.target.value) / 100)
 	})
 	document.getElementById("pose").addEventListener("click", () => cyclePose(1))
+	document.getElementById("environment").addEventListener("click", () => cycleEnvironment(1))
+	environment.onThemeChange((name) => {
+		for (const input of els.placeSegment?.inputs ?? []) input.checked = input.value === name
+	})
 	document.getElementById("shuffle").addEventListener("click", () => shuffleOutfit())
 	document.getElementById("reset-view").addEventListener("click", () => {
 		controls.reset()

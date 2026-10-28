@@ -6,7 +6,6 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js"
 
 import { CAMERA } from "./config.js"
 import { LIVE, TIERS, onPreset } from "./presets.js"
-import { cnoise, waves, dither } from "./shaders/common.glsl.js"
 
 export let renderer = null
 export let scene = null
@@ -21,10 +20,7 @@ let renderTarget = null
 let key = null
 let fill = null
 let rim = null
-let hemi = null
 
-let ground = null
-let groundMaterial = null
 let contactShadow = null
 let groundBounce = null
 
@@ -124,154 +120,6 @@ function configureShadow(mapSize) {
 	key.shadow.bias = (-0.07 * worldTexel) / 8
 }
 
-/* ------------------------------------------------------------------ IBL */
-
-let pmrem = null
-
-export function applyEnvMap(hdrTexture) {
-	if (!pmrem) {
-		pmrem = new THREE.PMREMGenerator(renderer)
-		pmrem.compileEquirectangularShader()
-	}
-	hdrTexture.mapping = THREE.EquirectangularReflectionMapping
-	scene.environment = pmrem.fromEquirectangular(hdrTexture).texture
-	hdrTexture.dispose()
-	pmrem.dispose()
-	pmrem = null
-
-	if (hemi) {
-		scene.remove(hemi)
-		hemi.dispose()
-		hemi = null
-	}
-}
-
-/**
- * Stand-in for the low tier, which never downloads the HDR at all — and the
- * fallback when the download fails on a tier that wanted one. Its colours come
- * from the preset, so switching to it does not break the mood.
- */
-function useHemisphereLight() {
-	if (hemi) return
-	hemi = new THREE.HemisphereLight(LIVE.skyTop, LIVE.horizon, 0.55)
-	hemi.color = LIVE.skyTop
-	hemi.groundColor = LIVE.horizon
-	scene.add(hemi)
-}
-
-/** Called when the HDR could not be fetched, so the scene keeps an ambient term. */
-export function useFallbackAmbient() {
-	if (!scene.environment) useHemisphereLight()
-}
-
-/* ------------------------------------------------------------- backdrop */
-
-const GROUND_VERTEX = /* glsl */ `
-uniform float uTime;
-uniform float uBigWavesElevation;
-uniform vec2 uBigWavesFrequency;
-uniform float uBigWavesSpeed;
-uniform float uSmallWavesElevation;
-uniform float uSmallWavesFrequency;
-uniform float uSmallWavesSpeed;
-uniform int uSmallWavesIteration;
-
-varying float vElevation;
-
-#include <fog_pars_vertex>
-
-${cnoise}
-${waves}
-
-void main() {
-	vec4 modelPosition = modelMatrix * vec4(position, 1.0);
-
-	float elevation =
-		bigWaves(modelPosition.xyz, uTime, uBigWavesElevation, uBigWavesFrequency, uBigWavesSpeed) +
-		smallWaves(modelPosition.xyz, uTime, uSmallWavesElevation, uSmallWavesFrequency, uSmallWavesSpeed, uSmallWavesIteration);
-
-	modelPosition.y += elevation;
-
-	vec4 mvPosition = viewMatrix * modelPosition;
-	gl_Position = projectionMatrix * mvPosition;
-
-	vElevation = elevation;
-	#include <fog_vertex>
-}
-`
-
-const GROUND_FRAGMENT = /* glsl */ `
-uniform vec3 uDepthColor;
-uniform vec3 uSurfaceColor;
-uniform float uColorOffset;
-uniform float uColorMultiplier;
-
-varying float vElevation;
-
-#include <fog_pars_fragment>
-${dither}
-
-void main() {
-	float mixStrength = smoothstep(0.0, 1.0, (vElevation + uColorOffset) * uColorMultiplier);
-	vec3 color = mix(uDepthColor, uSurfaceColor, mixStrength);
-
-	gl_FragColor = vec4(color, 1.0);
-	#include <tonemapping_fragment>
-	#include <colorspace_fragment>
-	// Fog LAST, after tone mapping and the colour-space conversion.
-	// three uploads fogColor already encoded in the renderer's OUTPUT space
-	// whenever it draws straight to the canvas (getUnlitUniformColorSpace returns
-	// outputColorSpace when there is no render target), which is why three's own
-	// shaders order the chunks this way. Applying fog first mixed sRGB-encoded
-	// values into linear colour and then encoded them a second time — at dusk the
-	// fog came out ~2.9x too bright, so the ridge sat against the sky as a pale
-	// band exactly where it should have dissolved into it. And because the
-	// composer path uses the working space instead, the seam appeared and
-	// disappeared with the Quality setting.
-	#include <fog_fragment>
-	gl_FragColor.rgb = applyDither(gl_FragColor.rgb, gl_FragCoord.xy);
-}
-`
-
-function createGroundMaterial() {
-	groundMaterial = new THREE.ShaderMaterial({
-		wireframe: true,
-		fog: true,
-		uniforms: {
-			...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
-			uTime: { value: 0 },
-			uBigWavesElevation: { value: 0 },
-			uBigWavesFrequency: { value: new THREE.Vector2(0, 0) },
-			uBigWavesSpeed: { value: 0.5 },
-			uSmallWavesElevation: { value: 0.0125 },
-			uSmallWavesFrequency: { value: 3 },
-			uSmallWavesSpeed: { value: 0.2 },
-			uSmallWavesIteration: { value: 4 },
-			// Shared instances: a preset crossfade reaches the grid for free.
-			uDepthColor: { value: LIVE.gridLow },
-			uSurfaceColor: { value: LIVE.gridHigh },
-			uColorOffset: { value: 0.08 },
-			uColorMultiplier: { value: 5 },
-		},
-		vertexShader: GROUND_VERTEX,
-		fragmentShader: GROUND_FRAGMENT,
-	})
-}
-
-function buildGroundGeometry() {
-	const [width, depth, segX, segY] = tier.ground
-	const geometry = new THREE.PlaneGeometry(width, depth, segX, segY)
-	geometry.rotateX(-Math.PI / 2)
-	return geometry
-}
-
-function createGround() {
-	createGroundMaterial()
-	ground = new THREE.Mesh(buildGroundGeometry(), groundMaterial)
-	ground.position.set(0, floorY, -2)
-	backdrop.add(ground)
-}
-
 /* ------------------------------------------------- contact shadow / pool */
 
 const RADIAL_VERTEX = /* glsl */ `
@@ -360,7 +208,6 @@ function createGroundBounce() {
  */
 export function setFloorHeight(y) {
 	floorY = y
-	if (ground) ground.position.y = y
 	if (contactShadow) contactShadow.position.set(-0.13, y + 0.004, -0.31)
 	if (groundBounce) groundBounce.position.set(0, y + 0.002, -0.28)
 }
@@ -449,13 +296,6 @@ export function applyTier(name) {
 	if (tier.shadows) configureShadow(tier.shadowMapSize)
 	key.castShadow = tier.shadows
 
-	if (ground) {
-		ground.geometry.dispose()
-		ground.geometry = buildGroundGeometry()
-	}
-
-	if (tier.ibl === "hemi" && !scene.environment) useHemisphereLight()
-
 	buildComposer()
 	resize(true)
 	onTierChange?.(tier, name)
@@ -485,17 +325,6 @@ export function setRenderSize(width, height, pixelRatio) {
 	composer?.setSize(width, height)
 }
 
-export function updateWorld(elapsed) {
-	if (groundMaterial) groundMaterial.uniforms.uTime.value = elapsed
-}
-
-/** Audio-reactive swell on the wireframe grid. */
-export function setAudioLevel(level) {
-	if (groundMaterial) {
-		groundMaterial.uniforms.uSmallWavesElevation.value = 0.0125 + level * 0.075
-	}
-}
-
 /* --------------------------------------------------------------- setup */
 
 export function setupWorld({ canvas, tier: tierName = "medium" }) {
@@ -508,20 +337,18 @@ export function setupWorld({ canvas, tier: tierName = "medium" }) {
 	backdrop = new THREE.Group()
 	scene.add(backdrop)
 
-	// One Color instance shared by the fog, the sky's horizon band and the
-	// mountain blend, so the backdrop cannot come apart into separate planes.
+	// One Color instance shared by the fog, the sky's horizon band and every
+	// place's far geometry, so the backdrop cannot come apart into planes.
 	scene.fog = new THREE.Fog(LIVE.horizon, LIVE.fogNear, LIVE.fogFar)
 	scene.fog.color = LIVE.horizon
 
 	createLights()
-	createGround()
 	createContactShadow()
 	createGroundBounce()
 	setFloorHeight(floorY)
 
 	renderer.shadowMap.enabled = tier.shadows
 	key.castShadow = tier.shadows
-	if (tier.ibl === "hemi") useHemisphereLight()
 
 	buildComposer()
 	resize(true)
@@ -536,8 +363,7 @@ export function setupWorld({ canvas, tier: tierName = "medium" }) {
 		rim.intensity = live.rimIntensity
 		rim.position.copy(live.sunDir).multiplyScalar(6)
 
-		scene.fog.near = live.fogNear
-		scene.fog.far = live.fogFar
+		// Fog distances belong to the place (env/index.js); the colour is shared.
 		scene.environmentIntensity = live.envIntensity
 		scene.environmentRotation.set(0, live.envRotY, 0)
 

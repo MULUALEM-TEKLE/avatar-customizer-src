@@ -9,14 +9,14 @@ import {
 	TIER_ORDER,
 } from "./modules/presets.js"
 import * as world from "./modules/world.js"
-import * as environment from "./modules/environment.js"
+import * as environment from "./modules/env/index.js"
 import * as character from "./modules/character.js"
 import * as state from "./modules/state.js"
 import * as audio from "./modules/audio.js"
 import * as controls from "./modules/controls.js"
 import * as loadingScreen from "./modules/loadingScreen.js"
 import * as persistence from "./modules/persistence.js"
-import { AssetError, loadGLTF, loadHDR } from "./modules/loadingManager.js"
+import { loadGLTF } from "./modules/loadingManager.js"
 import { mountPhotoMode } from "./modules/photoMode.js"
 import { mountUI, setQualityLabel } from "./modules/ui.js"
 import { mountKeyboard } from "./modules/keyboard.js"
@@ -28,7 +28,6 @@ import { announce, fatal } from "./modules/notify.js"
  */
 const EXPECTED_BYTES = {
 	character: 3_210_340,
-	environment: 528_384,
 }
 
 let currentTierName = "medium"
@@ -54,16 +53,7 @@ async function boot() {
 	world.setupWorld({ canvas, tier: currentTierName })
 	applyPreset(readInitialScene(), { animate: false })
 
-	// The environment model and the HDR stream in after first render, so the
-	// only thing gating interactivity is the character — which is the product.
 	let gltf
-	// The HDR is 400 KB against the character's 3.2 MB: fetching it alongside
-	// costs a tenth of the download and lets the materials compile once, with
-	// the environment in place. Set after the first frame, it forces every
-	// standard material through a second compile, which froze the app for most
-	// of a second right after the reveal.
-	ensureEnvMap()
-
 	try {
 		gltf = await loadGLTF(ASSETS.character, {
 			expectedBytes: EXPECTED_BYTES.character,
@@ -99,9 +89,8 @@ async function boot() {
 	const feetY = character.getFeetY()
 	world.setFloorHeight(feetY)
 
-	// Scenery streams from here, under the decode and the reveal, rather than
-	// after the loading screen has finished fading.
-	streamBackdrop({ feetY, tier })
+	// The place is procedural: nothing to download, so it is simply built.
+	environment.mountEnvironment({ floorHeight: feetY, theme: readInitialTheme() })
 
 	controls.mountControls({
 		domElement: canvas,
@@ -165,49 +154,6 @@ async function boot() {
 	}
 }
 
-/**
- * Everything the app can run without. A failure here costs scenery, not the app,
- * so it is reported quietly and never blocks.
- */
-async function streamBackdrop({ feetY, tier }) {
-	environment.mountEnvironment({ floorHeight: feetY })
-
-	ensureEnvMap()
-
-	try {
-		const gltf = await loadGLTF(ASSETS.environment, {
-			expectedBytes: EXPECTED_BYTES.environment,
-		})
-		environment.addProps(gltf)
-	} catch {
-		announce("Some scenery could not be loaded.")
-	}
-}
-
-let envMapRequested = false
-
-/**
- * Fetch the HDR the first time a tier actually wants it.
- *
- * It used to be requested once, gated on the boot tier, so a session that
- * started on Low and was promoted by the frame timer kept the hemisphere
- * stand-in and a null `scene.environment` forever. And when the fetch failed
- * there was no ambient term at all on medium/high — the character went black
- * on one side with only an sr-only announcement to explain it.
- */
-function ensureEnvMap() {
-	if (envMapRequested) return
-	if (world.currentTier().ibl !== "hdr") return
-	envMapRequested = true
-
-	loadHDR(ASSETS.envMap)
-		.then((texture) => world.applyEnvMap(texture))
-		.catch(() => {
-			world.useFallbackAmbient()
-			announce("Scene lighting could not be loaded; using a simpler light.")
-		})
-}
-
 function isWebGLAvailable() {
 	try {
 		const probe = document.createElement("canvas")
@@ -224,6 +170,14 @@ function isWebGLAvailable() {
 function readInitialScene() {
 	const saved = persistence.readInitial()
 	return saved?.scene && PRESETS[saved.scene] ? saved.scene : "dusk"
+}
+
+/** `?e=forest` in the search string is an explicit ask, like `?q=` for the tier. */
+function readInitialTheme() {
+	const asked = new URLSearchParams(location.search).get("e")
+	if (asked && environment.THEMES[asked]) return asked
+	const saved = persistence.readInitial()
+	return saved?.theme && environment.THEMES[saved.theme] ? saved.theme : environment.DEFAULT_THEME
 }
 
 function restoreSession() {
@@ -243,6 +197,7 @@ export function persistSession() {
 		outfit: state.serialize(),
 		pose: character.getCurrentClip(),
 		scene: currentPresetName(),
+		theme: environment.currentThemeName(),
 	}
 	persistence.save(session)
 	persistence.syncURL(session)
@@ -250,6 +205,7 @@ export function persistSession() {
 
 state.subscribe(() => persistSession())
 character.onPoseChange(() => persistSession())
+environment.onThemeChange(() => persistSession())
 
 /* ---------------------------------------------------------- frame loop */
 
@@ -292,7 +248,6 @@ function tick() {
 	controls.updateControls(delta)
 
 	const level = audio.updateLevel(delta)
-	world.setAudioLevel(level)
 	environment.setAudioLevel(level)
 	// The same signal that moves the water also drives the console's VU rule,
 	// which is the only place the analyser is visible rather than inferred.
@@ -304,7 +259,6 @@ function tick() {
 		consoleEl?.style.setProperty("--level", step)
 	}
 
-	world.updateWorld(elapsed)
 	environment.updateEnvironment(elapsed)
 
 	world.render()
@@ -340,9 +294,6 @@ export function getCurrentTierName() {
 function applyTier(name) {
 	currentTierName = world.applyTier(name)
 	setQualityLabel(currentTierName)
-	// Moving up into a tier that wants image-based lighting has to go and fetch
-	// it; the HDR is only requested once at boot, on the boot tier.
-	ensureEnvMap()
 	return currentTierName
 }
 
