@@ -1,6 +1,6 @@
 # Handoff
 
-Updated: 2026-10-28 14:00, review fixes committed on master, session: places
+Updated: 2026-10-28 18:10, polish round in flight (b8dfdf7 on master), session: places
 
 ## Goal
 
@@ -8,13 +8,15 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## In flight
 
-- none
+- master (orchestrator): four polish workers in worktrees (harbor, rooftop, forest, dunes) finishing a production pass; orchestrator merges, runs `node scripts/capture-matrix.mjs` high+low, deploys, reports.
 
 ## Blocked / waiting
 
 - Asset trims need an owner decision (see Next). Nothing else.
 
 ## Decisions (last 2 weeks)
+
+- 2026-10-28 (afternoon): camera-side front light per preset; time-of-day console button (phones had it only inside the sheet); places cached and warmed after the reveal, swaps dip to the fog colour (~260 ms); depth of field + vignette on high (subtle; frame timer drops the blur above 17.5 ms); fonts self-hosted (26-icon subset); loader is a transparent turntable rendered by `scripts/render-loader.mjs`; garments declare body-region coverage and the self-check walks all 8,640 outfits; forest rebuilt from Quaternius CC0 kits (`scripts/build-forest-kit.mjs`, 307 KB GLB).
 
 - 2026-10-28: places are procedural and swappable (`src/modules/env/`): Harbor, Rooftop, Forest, Dunes, each `create({floorY, tier, LIVE})` per the contract in `env/index.js`. The sky is a dome; its probe copy feeds `scene.environment` through PMREM, so the HDR and the scenery GLB are gone (-0.9 MB).
 - 2026-10-28: the figure is framed in the uncovered viewport by a `setViewOffset` lens shift (desktop: half the 384 px panel; phone sheet: capped at 10% of the height). Exports clear it.
