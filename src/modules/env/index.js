@@ -1,4 +1,4 @@
-import { scene, backdrop, currentTier } from "../world.js"
+import { scene, backdrop, camera, renderer, currentTier } from "../world.js"
 import { LIVE, onPreset } from "../presets.js"
 import * as sky from "./sky.js"
 import { disposeGroup } from "./lib.js"
@@ -46,6 +46,9 @@ export const DEFAULT_THEME = "harbor"
 
 let current = null
 let currentName = null
+/** The place the user last asked for; it may still be compiling. */
+let pendingName = null
+let swapToken = 0
 let floorY = -0.9
 let audioLevel = 0
 const listeners = new Set()
@@ -59,33 +62,57 @@ function applyFog(live) {
 export function mountEnvironment({ floorHeight = -0.9, theme = DEFAULT_THEME } = {}) {
 	floorY = floorHeight
 	sky.mountSky({ tier: currentTier() })
-	setTheme(THEMES[theme] ? theme : DEFAULT_THEME)
+	// Boot compiles the whole scene before the reveal, so the first place
+	// goes in synchronously.
+	setTheme(THEMES[theme] ? theme : DEFAULT_THEME, { immediate: true })
 	onPreset(applyFog)
 }
 
-export function setTheme(name) {
-	const def = THEMES[name]
-	if (!def) return false
-	if (name === currentName) return true
-
+function show(next, name) {
 	if (current) {
 		current.dispose()
 		disposeGroup(current.group)
-		current = null
 	}
-
+	current = next
 	currentName = name
-	current = def.create({ floorY, tier: currentTier(), LIVE })
 	backdrop.add(current.group)
 	sky.setGroundColor(current.groundColor ?? 0x202024)
 	applyFog(LIVE)
-
 	for (const fn of listeners) fn(name)
+}
+
+/**
+ * Swapping places compiles the new one's shaders first, in parallel and off
+ * the frame, and only then takes the old one down — otherwise the first visit
+ * to each place stalled a frame, worst on low. A newer request cancels an
+ * older one still compiling.
+ */
+export function setTheme(name, { immediate = false } = {}) {
+	const def = THEMES[name]
+	if (!def) return false
+	if (name === (pendingName ?? currentName)) return true
+
+	pendingName = name
+	const token = ++swapToken
+	const next = def.create({ floorY, tier: currentTier(), LIVE })
+
+	if (immediate) {
+		show(next, name)
+		return true
+	}
+	renderer.compileAsync(next.group, camera, scene).then(() => {
+		if (token !== swapToken) {
+			next.dispose()
+			disposeGroup(next.group)
+			return
+		}
+		show(next, name)
+	})
 	return true
 }
 
 export function cycleTheme(delta = 1) {
-	const at = THEME_ORDER.indexOf(currentName)
+	const at = THEME_ORDER.indexOf(pendingName ?? currentName)
 	const next = (((at + delta) % THEME_ORDER.length) + THEME_ORDER.length) % THEME_ORDER.length
 	setTheme(THEME_ORDER[next])
 	return THEME_ORDER[next]

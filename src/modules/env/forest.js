@@ -24,12 +24,17 @@ const ROCKS = 20
 
 const smooth = THREE.MathUtils.smoothstep
 
-/** World-space ground height above floorY. Flat inside r 2.5, rolling beyond 3. */
+/**
+ * World-space ground height above floorY. Flat out to r 7.5, rolling beyond
+ * 11. The flat disc has to reach past one cell diagonal of the coarsest grid
+ * (3.3 m cells on low), or triangles that touch the avatar's 2.5 m pad still
+ * carry the roll of their outer vertices and clip the contact shadow.
+ */
 function heightAt(x, z) {
 	const r = Math.hypot(x, z)
 	const roll = fbm(x * 0.09 + 3.1, z * 0.09 - 1.7, 4) * 0.7
 	const rise = smooth(r, 22, 85) * (3.2 + 2.4 * fbm(x * 0.03 + 9, z * 0.03, 2))
-	return smooth(r, 2.5, 3) * roll + rise
+	return smooth(r, 7.5, 11) * roll + rise
 }
 
 /** Is (x, z) in front of the camera, within `deg` of the -z axis? */

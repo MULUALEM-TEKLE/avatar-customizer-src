@@ -9,12 +9,20 @@ export default {
 		// header survives only in cf.clientAcceptEncoding.
 		const accept = request.cf?.clientAcceptEncoding ?? request.headers.get("Accept-Encoding") ?? ""
 		const acceptsBr = /\bbr\b/.test(accept)
-		if (!url.pathname.endsWith(".glb") || !acceptsBr) return env.ASSETS.fetch(request)
+		if (!url.pathname.endsWith(".glb") || !acceptsBr) {
+			const plain = await env.ASSETS.fetch(request)
+			if (!url.pathname.endsWith(".glb")) return plain
+			const headers = new Headers(plain.headers)
+			headers.set("Vary", "Accept-Encoding")
+			return new Response(plain.body, { status: plain.status, headers })
+		}
 
 		const br = await env.ASSETS.fetch(new URL(`${url.pathname}.br`, url), request)
 		if (br.status === 404) return env.ASSETS.fetch(request)
 
-		sizes ??= await env.ASSETS.fetch(new URL("/models/sizes.json", url)).then((r) => r.json())
+		sizes ??= await env.ASSETS.fetch(new URL("/models/sizes.json", url))
+			.then((r) => (r.ok ? r.json() : {}))
+			.catch(() => ({}))
 		const headers = new Headers(br.headers)
 		headers.set("Content-Encoding", "br")
 		headers.set("Content-Type", "model/gltf-binary")

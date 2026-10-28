@@ -257,6 +257,9 @@ let framingTween = null
 
 function applyFraming() {
 	if (!camera || !lastWidth || !lastHeight) return
+	// Photo mode clears the offset for the export; a tween still running must
+	// not put it back mid-capture.
+	if (document.body.classList.contains("is-capturing")) return
 	// Positive offset moves the view window right in the virtual frame, which
 	// moves the world's centre left on screen.
 	const dx = (0.5 - framing.x) * lastWidth

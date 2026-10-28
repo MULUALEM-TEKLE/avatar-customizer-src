@@ -1,6 +1,6 @@
 # Handoff
 
-Updated: 2026-10-28 13:10, after merging the four place branches (2762b30), session: places
+Updated: 2026-10-28 14:00, review fixes committed on master, session: places
 
 ## Goal
 
@@ -8,7 +8,7 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## In flight
 
-- master (orchestrator): all five worker branches merged. Running the capture matrix (`node scripts/capture-matrix.mjs`, high and low) and a fresh code review; then fixes, deploy, report.
+- none
 
 ## Blocked / waiting
 
@@ -30,8 +30,10 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## Next
 
-- bilal.glb (3.1 MB = 1.1 MB textures, 0.9 MB raw animation floats, 0.65 MB Draco mesh, 0.5 MB JSON) is 75% of the download. Options for the owner: downscale the one 1024^2 texture (315 KB), compress animation only (meshopt with quantize off, verify soles), or serve `.glb` brotli via a tiny Worker route (Cloudflare does not compress model/gltf-binary).
-- loader.webp 121 KB could be ~30 KB.
+- Places polish if wanted: a crossfade between places (today it is a hard swap after an async compile), a social capture per place, the pier is 4 m wide (flat 2.0 m, contract asks 2.5 m; the light pool still fits).
+- Low-tier devices: measure the sky-probe PMREM cost on a real phone (now only the settled frame refreshes on low).
+- bilal.glb is 3.0 MB raw / 2.1 MB brotli on the wire (0.9 MB raw animation floats are the next trim: compress animation only, quantize off, verify soles).
+- loader.webp is an animation (88 KB); 40 KB needs dropping frames.
 - Per-garment colour customisation needs material cloning and a design first.
 
 ## Do not touch

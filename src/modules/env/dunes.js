@@ -54,7 +54,6 @@ function groundGeometry(detail) {
 	const ridges = new Float32Array(pos.count)
 	for (let i = 0; i < pos.count; i++) {
 		const s = pos.getX(i) * 2
-		const x = 90 * (0.35 * s + 0.65 * s * Math.abs(s))
 		const w = pos.getZ(i) + 0.5 // 0 = far edge, 1 = behind the camera
 		let z
 		if (w >= 0.92) z = (12 * (w - 0.92)) / 0.08
@@ -62,6 +61,11 @@ function groundGeometry(detail) {
 			const t = (0.92 - w) / 0.92
 			z = -168 * (0.3 * t + 0.7 * t * t)
 		}
+		// Rows widen with depth: with the panel open the lens shift pushes the
+		// view's right edge out to ~1.05x the depth, and the fog is only 60%
+		// at 120 m at noon, so a fixed 90 m half-width ended in a visible cut.
+		const half = Math.max(90, 1.4 * Math.abs(z) + 20)
+		const x = half * (0.35 * s + 0.65 * s * Math.abs(s))
 		pos.setXYZ(i, x, dune(x, z), z)
 		ridges[i] = lastRidge
 	}

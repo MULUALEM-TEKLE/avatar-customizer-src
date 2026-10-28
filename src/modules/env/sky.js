@@ -1,6 +1,6 @@
 import * as THREE from "three"
 
-import { renderer, scene, backdrop } from "../world.js"
+import { renderer, scene, backdrop, currentTier } from "../world.js"
 import { LIVE, onPreset } from "../presets.js"
 
 /**
@@ -148,6 +148,8 @@ function refreshEnvironment() {
 function scheduleRefresh() {
 	clearTimeout(settleTimer)
 	settleTimer = setTimeout(refreshEnvironment, REFRESH_SETTLE_MS)
+	// Low keeps only the settled frame; the interim probes are ~10 ms each.
+	if (currentTier().detail === 0) return
 	if (performance.now() - lastRefresh > REFRESH_MIN_MS) refreshEnvironment()
 }
 

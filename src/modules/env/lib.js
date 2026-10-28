@@ -113,6 +113,7 @@ export function disposeGroup(group) {
 	group.traverse((o) => {
 		// Points and lines carry geometry too (fireflies, sand motes, rope).
 		if (!(o.isMesh || o.isPoints || o.isLine || o.isSprite)) return
+		if (o.isInstancedMesh) o.dispose() // instanceMatrix / instanceColor buffers
 		o.geometry.dispose()
 		const mats = Array.isArray(o.material) ? o.material : [o.material]
 		for (const m of mats) m.dispose()

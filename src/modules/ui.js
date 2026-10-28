@@ -572,7 +572,8 @@ function updateFraming({ animate = true } = {}) {
 			x = Math.max(0.2, els.panel.offsetLeft / 2 / vw)
 		}
 	}
-	world.setFraming({ x, y }, { animate })
+	const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+	world.setFraming({ x, y }, { animate: animate && !reduced })
 }
 
 /** Phone only: one category at a time, with the sheet header naming it. */
