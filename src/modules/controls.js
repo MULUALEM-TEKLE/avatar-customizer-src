@@ -257,6 +257,16 @@ export function faceFront() {
 	wake()
 }
 
+/** Frame-exact renders: set the turntable and the dolly with no easing. */
+export function setView({ yaw: y = yaw, distance: d = distanceTarget } = {}) {
+	yaw = y
+	yawVelocity = 0
+	distanceTarget = clamp(d, CAMERA.minDistance, CAMERA.maxDistance)
+	distance = distanceTarget
+	wake()
+	updateControls(0)
+}
+
 export function setKeySpin(direction, { fast = false } = {}) {
 	keyDirection = direction
 	keyFast = fast
