@@ -15,8 +15,13 @@ let root = null
 let mixer = null
 let currentAction = null
 let currentClipName = null
-/** The looping pose a one-shot returns to when it finishes. */
-let restingClipName = DEFAULT_ANIMATION
+/**
+ * The clip the user last picked. A one-shot settles back into the default idle,
+ * not into whichever looping clip happened to precede it in the picker (Fly sits
+ * right before Cast, so every gesture used to end in levitation), and cycling
+ * continues from the pick rather than from the idle it settled into.
+ */
+let selectedClipName = null
 
 const clips = new Map()
 const listeners = new Set()
@@ -74,8 +79,17 @@ function prepareMaterials(model, { castShadow }) {
 		const material = child.material
 		if (material) {
 			material.roughness = Math.min(material.roughness ?? 1, 0.9)
+			// Every garment is exported single-sided, but they are open shells:
+			// cuffs, hoods and open fronts show their insides. Shadows keep
+			// rendering from the back faces only, which is what the bias in
+			// world.js was tuned against.
+			material.side = THREE.DoubleSide
+			material.shadowSide = THREE.BackSide
 			if (child.name === SPECIAL_MESHES.skin) {
 				material.color = new THREE.Color(SKIN_COLOR)
+				// Exported at 0.4, which reads as wet plastic. Skin without
+				// subsurface scattering wants a broad, dim highlight.
+				material.roughness = 0.72
 			}
 		}
 
@@ -145,6 +159,12 @@ export function availablePoses() {
 }
 
 export function playPose(name, fade = 0.35) {
+	if (!start(name, fade)) return false
+	selectedClipName = name
+	return true
+}
+
+function start(name, fade) {
 	const clip = clips.get(name)
 	if (!clip || !mixer) return false
 	if (name === currentClipName) return true
@@ -163,7 +183,6 @@ export function playPose(name, fade = 0.35) {
 
 	currentAction = next
 	currentClipName = name
-	if (looping) restingClipName = name
 
 	for (const fn of listeners) fn(name)
 	return true
@@ -173,20 +192,20 @@ export function playPose(name, fade = 0.35) {
 export function cyclePose(delta = 1) {
 	const poses = availablePoses()
 	if (!poses.length) return
-	const at = poses.findIndex((p) => p.clip === currentClipName)
+	const at = poses.findIndex((p) => p.clip === selectedClipName)
 	const next = (((at + delta) % poses.length) + poses.length) % poses.length
 	playPose(poses[next].clip)
 }
 
 /**
  * A one-shot that has played out leaves the character frozen mid-gesture, so
- * settle back into the last looping pose instead.
+ * settle back into the default idle instead.
  */
 function onActionFinished(event) {
 	if (event.action !== currentAction) return
 	if (isLooping(currentClipName)) return
 	currentClipName = null
-	playPose(restingClipName, 0.4)
+	start(DEFAULT_ANIMATION, 0.4)
 }
 
 export function update(delta) {

@@ -84,7 +84,7 @@ export const BASE_LAYER_RULES = {
 /**
  * Animation clips surfaced in the pose picker, by clip name.
  * `loop: false` clips are one-shots — they play through, then the character
- * settles back into whichever looping pose was selected before.
+ * settles back into the default idle.
  */
 export const ANIMATIONS = [
 	{ clip: "Male_Idle1", label: "Idle", loop: true },

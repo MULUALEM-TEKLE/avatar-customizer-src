@@ -188,6 +188,9 @@ function buildMountainGeometry() {
 function addMountains() {
 	mountainMaterial = new THREE.ShaderMaterial({
 		fog: true,
+		// A displaced plane seen from below its crest shows its underside; the
+		// shader never reads normals, so both faces are free.
+		side: THREE.DoubleSide,
 		uniforms: {
 			...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
 			uBigWavesElevation: { value: 5.25 },
