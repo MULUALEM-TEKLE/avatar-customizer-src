@@ -111,7 +111,8 @@ export function matte(color, options = {}) {
 /** Frees geometry and materials of everything under `group` and detaches it. */
 export function disposeGroup(group) {
 	group.traverse((o) => {
-		if (!o.isMesh) return
+		// Points and lines carry geometry too (fireflies, sand motes, rope).
+		if (!(o.isMesh || o.isPoints || o.isLine || o.isSprite)) return
 		o.geometry.dispose()
 		const mats = Array.isArray(o.material) ? o.material : [o.material]
 		for (const m of mats) m.dispose()
