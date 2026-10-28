@@ -1,26 +1,29 @@
 import * as THREE from "three"
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js"
 
+import { ASSETS } from "../config.js"
+import { loadGLTF } from "../loadingManager.js"
+import { renderer, camera, scene } from "../world.js"
 import { rng, fbm, heightfield, scatter, matte, disposeGroup } from "./lib.js"
 
 /**
- * Forest: a small clearing. Flat worn soil under the avatar, rolling grass
- * around it, conifers and broadleaves framing the view from 12 m out, a few
- * rocks, and fireflies that come out at night. Everything is instanced: seven
- * draw calls, no shadow casters (the key's frustum only covers the avatar).
+ * Forest: a sheltered clearing. Flat worn soil under the avatar, rolling grass
+ * around it, maples and birches from a CC0 kit (Quaternius) framing the view
+ * from 9 m out, bushes along the clearing edge, flowers, ferns and mushrooms
+ * near the feet, and fireflies that come out at night. Everything is
+ * instanced: fourteen draw calls, no shadow casters (the key's frustum only
+ * covers the avatar). The kit arrives after the ground; `ready` says when.
  */
 
 const SEED = 4217
 const GROUND_Z = -55 // the ground plane is centred here: only -z is ever seen
 const GROUND_SEG = [
 	[90, 64],
-	[130, 92],
-	[180, 126],
+	[100, 70],
+	[110, 78],
 ]
-const GRASS = [1200, 2800, 5000]
-const TREES = [60, 100, 150]
+const GRASS = [1200, 2200, 3000]
 const FIREFLIES = [60, 90, 120]
-const ROCKS = 20
 
 const smooth = THREE.MathUtils.smoothstep
 
@@ -142,51 +145,213 @@ function grassMaterial(uniforms) {
 	return material
 }
 
-/* ----------------------------------------------------------------- trees */
+/* ------------------------------------------------------------------- kit */
 
-const nonIndexed = (g) => (g.index ? g.toNonIndexed() : g)
-
-function coniferFoliage() {
-	const cones = [
-		[2.6, 4.6, 4.3],
-		[2.0, 3.8, 6.1],
-		[1.3, 3.2, 8.0],
-	].map(([r, h, y]) => new THREE.ConeGeometry(r, h, 8, 1).translate(0, y, 0))
-	return mergeGeometries(cones.map(nonIndexed))
+/**
+ * Quaternius kit pieces (CC0), baked by scripts/build-forest-kit.mjs. One
+ * InstancedMesh per glTF primitive: a tree is bark + leaves, two draw calls.
+ */
+const KIT_MODELS = [
+	"MapleTree_1",
+	"MapleTree_3",
+	"BirchTree_4",
+	"Bush_Large",
+	"Flower_2_Clump",
+	"Flower_4_Clump",
+	"Fern_1",
+	"Mushroom_Common",
+	"Rock_Medium_1",
+]
+const TREE_KINDS = ["MapleTree_1", "MapleTree_3", "BirchTree_4"]
+const COUNTS = {
+	trees: [9, 18, 28],
+	bushes: [8, 14, 20],
+	flowers: [24, 44, 64],
+	mushrooms: [6, 10, 14],
+	ferns: [6, 12, 18],
+	rocks: [6, 9, 12],
 }
 
-function broadleafFoliage() {
-	const balls = [
-		[2.3, 0, 5.2, 0],
-		[1.7, 1.3, 4.4, 0.5],
-		[1.6, -1.1, 6.0, -0.5],
-	].map(([r, x, y, z]) => new THREE.IcosahedronGeometry(r, 1).translate(x, y, z))
-	return mergeGeometries(balls.map(nonIndexed))
+/** Every model as [{ geometry, material }], node transform baked in, base at y 0. */
+function extractKit(gltf) {
+	const kit = {}
+	const box = new THREE.Box3()
+	gltf.scene.updateMatrixWorld(true)
+	for (const name of KIT_MODELS) {
+		const parts = []
+		gltf.scene.getObjectByName(name).traverse((o) => {
+			if (o.isMesh) parts.push({ geometry: o.geometry.clone().applyMatrix4(o.matrixWorld), material: o.material })
+		})
+		box.makeEmpty()
+		for (const p of parts) {
+			p.geometry.computeBoundingBox()
+			box.union(p.geometry.boundingBox)
+		}
+		for (const p of parts) p.geometry.translate(0, -box.min.y, 0)
+		kit[name] = parts
+	}
+	gltf.scene.traverse((o) => o.isMesh && o.geometry.dispose())
+	return kit
 }
 
-/** Places trees in a band r 12..60 in front of the camera, no two closer than 3.5 m. */
+function kitMaterial(source) {
+	const m = source.clone()
+	m.alphaTest = source.alphaTest > 0 ? 0.5 : 0
+	m.transparent = false
+	m.side = THREE.DoubleSide
+	m.roughness = 0.9
+	m.metalness = 0
+	m.dithering = true
+	return m
+}
+
+const _q = new THREE.Quaternion()
+const _e = new THREE.Euler()
+const _p = new THREE.Vector3()
+const _s = new THREE.Vector3()
+
+/** `spots`: [{ x, y, z, yaw, s, tilt?, sx?, leaf, bark? }]. Bark parts take `bark`, the rest `leaf`. */
+function kitMeshes(parts, spots) {
+	return parts.map(({ geometry, material }) => {
+		const mesh = new THREE.InstancedMesh(geometry.clone(), kitMaterial(material), spots.length)
+		const isBark = /Bark/.test(material.name)
+		const m = new THREE.Matrix4()
+		spots.forEach((sp, i) => {
+			_q.setFromEuler(_e.set(sp.tilt ?? 0, sp.yaw, (sp.tilt ?? 0) * 0.7))
+			m.compose(_p.set(sp.x, sp.y, sp.z), _q, _s.set(sp.s * (sp.sx ?? 1), sp.s, sp.s))
+			mesh.setMatrixAt(i, m)
+			mesh.setColorAt(i, isBark ? sp.bark : sp.leaf)
+		})
+		mesh.instanceMatrix.needsUpdate = true
+		return mesh
+	})
+}
+
+/** Polar sample in front of the camera: r in [r0, r1] (area-uniform), within ±deg of -z. */
+function polar(rand, r0, r1, deg) {
+	const r = Math.sqrt(r0 * r0 + rand() * (r1 * r1 - r0 * r0))
+	const a = (rand() - 0.5) * THREE.MathUtils.degToRad(deg * 2)
+	return [Math.sin(a) * r, -Math.cos(a) * r, r]
+}
+
+const hsl = (h, s, l) => new THREE.Color().setHSL(h, s, l, THREE.SRGBColorSpace)
+
+/**
+ * Trees from r 9 to 55. Four framing trees come first so the canopy tops the
+ * frame at the default zoom; the rest fill the band, more of them far back,
+ * leaving a window behind the avatar so it reads as a clearing.
+ */
 function plantTrees(count, rand) {
 	const trees = []
-	for (let tries = 0; trees.length < count && tries < count * 40; tries++) {
-		const r = Math.sqrt(12 * 12 + rand() * (60 * 60 - 12 * 12))
-		const a = (rand() - 0.5) * THREE.MathUtils.degToRad(170)
-		const x = Math.sin(a) * r
-		const z = -Math.cos(a) * r
-		// Keep a window open straight behind the avatar so it reads as a clearing.
-		if (r < 20 && Math.abs(x) < 4) continue
-		if (trees.some((t) => (t.x - x) ** 2 + (t.z - z) ** 2 < 3.5 * 3.5)) continue
-		trees.push({
-			x,
-			z,
-			y: heightAt(x, z),
-			conifer: rand() < 0.55,
-			s: 0.7 + rand() * 0.7,
-			yaw: rand() * Math.PI * 2,
-			tone: rand(),
-			shade: 0.8 + rand() * 0.25,
-		})
+	const frame = [
+		[-6.8, -8.2, 1],
+		[7.6, -9.6, 0],
+		[-12.5, -12, 2],
+		[3.2, -17, 1],
+	]
+	for (const [fx, fz, kind] of frame) trees.push({ x: fx + rand() - 0.5, z: fz + rand() - 0.5, kind })
+	for (let tries = 0; trees.length < count && tries < count * 60; tries++) {
+		const [x, z, r] = polar(rand, 10, 55, 80)
+		if (rand() > 0.35 + r / 60) continue // denser at the back
+		if (r < 22 && Math.abs(x) < 5) continue
+		if (trees.some((t) => (t.x - x) ** 2 + (t.z - z) ** 2 < 4.2 * 4.2)) continue
+		trees.push({ x, z, kind: rand() < 0.45 ? 0 : rand() < 0.36 ? 1 : 2 })
 	}
-	return trees
+	return trees.slice(0, count).map((t) => {
+		const amber = t.kind < 2 && rand() < 0.22
+		const leaf = amber
+			? hsl(0.07 + rand() * 0.04, 0.75, 0.5 + rand() * 0.08)
+			: t.kind < 2
+				? hsl(0.19 + rand() * 0.08, 0.42 + rand() * 0.15, 0.34 + rand() * 0.08)
+				: hsl(0.2 + rand() * 0.05, 0.4, 0.6 + rand() * 0.1)
+		if (t.kind < 2) leaf.multiplyScalar(1.35) // the grey leaf sheet sits at ~0.6
+		return {
+			...t,
+			y: heightAt(t.x, t.z) - 0.15,
+			yaw: rand() * Math.PI * 2,
+			s: (t.kind === 2 ? 1.25 : 1) * (0.95 + rand() * 0.4),
+			leaf,
+			bark: new THREE.Color().setScalar(0.8 + rand() * 0.25),
+		}
+	})
+}
+
+/** Small things around the clearing, never in front of or on the avatar's feet. */
+function scatterSpots(count, rand, r0, r1, deg, make) {
+	const spots = []
+	while (spots.length < count) {
+		const [x, z] = polar(rand, r0, r1, deg)
+		if (z > -1.4 && Math.abs(x) < 1.3) continue
+		spots.push({ x, z, y: heightAt(x, z), yaw: rand() * Math.PI * 2, ...make(x, z) })
+	}
+	return spots
+}
+
+function plantKit(kit, t, content) {
+	const rand = rng(SEED + 1)
+	const d = t.detail
+	const meshes = []
+	const trees = plantTrees(COUNTS.trees[d], rand)
+	TREE_KINDS.forEach((kind, k) => meshes.push(...kitMeshes(kit[kind], trees.filter((tr) => tr.kind === k))))
+
+	const bushes = scatterSpots(COUNTS.bushes[d], rand, 5, 14, 105, () => ({
+		s: 0.55 + rand() * 0.35,
+		sx: 0.9 + rand() * 0.5,
+		leaf: hsl(0.19 + rand() * 0.07, 0.35, 0.52 + rand() * 0.12),
+	}))
+	meshes.push(...kitMeshes(kit.Bush_Large, bushes))
+
+	// Flowers: loose in the grass, and every other clump tucked in front of a bush.
+	const flowers = scatterSpots(COUNTS.flowers[d], rand, 2.2, 12, 110, () => ({
+		s: 0.8 + rand() * 0.6,
+		leaf: new THREE.Color().setScalar(0.95 + rand() * 0.1),
+	}))
+	flowers.forEach((f, i) => {
+		if (i % 2) return
+		const b = bushes[i % bushes.length]
+		f.x = b.x + (rand() - 0.5) * 2.4
+		f.z = b.z + 0.7 + rand() * 1.1
+		f.y = heightAt(f.x, f.z)
+	})
+	// A yellow and a pink clump side by side make one patch: one draw call.
+	const patch = mergeGeometries([kit.Flower_2_Clump[0].geometry, kit.Flower_4_Clump[0].geometry.clone().translate(0.32, 0, 0.12)])
+	meshes.push(...kitMeshes([{ geometry: patch, material: kit.Flower_2_Clump[0].material }], flowers))
+	patch.dispose()
+
+	const ferns = scatterSpots(COUNTS.ferns[d], rand, 4, 14, 100, () => ({
+		s: 0.16 + rand() * 0.1,
+		leaf: hsl(0.22 + rand() * 0.05, 0.3, 0.75 + rand() * 0.15),
+	}))
+	meshes.push(...kitMeshes(kit.Fern_1, ferns))
+
+	// Mushrooms come in little rings of up to three.
+	const mushrooms = []
+	for (const c of scatterSpots(Math.ceil(COUNTS.mushrooms[d] / 3), rand, 2.6, 10, 100, () => ({}))) {
+		for (let k = 0; k < 3 && mushrooms.length < COUNTS.mushrooms[d]; k++) {
+			const x = c.x + (rand() - 0.5) * 0.7
+			const z = c.z + (rand() - 0.5) * 0.7
+			mushrooms.push({
+				x,
+				z,
+				y: heightAt(x, z) - 0.02,
+				yaw: rand() * Math.PI * 2,
+				s: 0.45 + rand() * 0.45,
+				tilt: (rand() - 0.5) * 0.25,
+				leaf: new THREE.Color(1, 1, 1),
+			})
+		}
+	}
+	meshes.push(...kitMeshes(kit.Mushroom_Common, mushrooms))
+
+	const rocks = scatterSpots(COUNTS.rocks[d], rand, 3.4, 24, 95, () => ({
+		s: 0.14 + rand() * rand() * 0.45,
+		tilt: (rand() - 0.5) * 0.3,
+		leaf: new THREE.Color().setScalar(0.75 + rand() * 0.3),
+	}))
+	for (const r of rocks) r.y -= r.s * 0.4 // half sunk
+	meshes.push(...kitMeshes(kit.Rock_Medium_1, rocks))
+
+	for (const mesh of meshes) content.add(mesh)
 }
 
 /* -------------------------------------------------------------- the place */
@@ -198,8 +363,12 @@ export default function create({ floorY, tier, LIVE }) {
 	let content = null
 	let fireflies = null
 	let wind = 0.08
+	let current = tier
+	let kit = null
+	let disposed = false
 
 	function build(t) {
+		current = t
 		const rand = rng(SEED)
 		const d = t.detail
 		content = new THREE.Group()
@@ -231,65 +400,12 @@ export default function create({ floorY, tier, LIVE }) {
 			tr.scale.set(w, h, w)
 		})
 		for (let i = 0; i < GRASS[d]; i++) {
-			grassColor.setHSL(0.22 + rand() * 0.05, 0.3 + rand() * 0.12, 0.27 + rand() * 0.07, THREE.SRGBColorSpace)
+			grassColor.setHSL(0.18 + rand() * 0.07, 0.36 + rand() * 0.14, 0.34 + rand() * 0.08, THREE.SRGBColorSpace)
 			grass.setColorAt(i, grassColor)
 		}
 		content.add(grass)
 
-		// Trees: one trunk mesh for both kinds, one foliage mesh per kind.
-		const trees = plantTrees(TREES[d], rand)
-		const conifers = trees.filter((tr) => tr.conifer)
-		const broadleaves = trees.filter((tr) => !tr.conifer)
-		const trunkGeometry = new THREE.CylinderGeometry(0.7, 1, 1, 6, 1, true).translate(0, 0.5, 0)
-		const trunks = scatter(trunkGeometry, matte(0xffffff, { flatShading: true }), trees.length, (i, tr) => {
-			const tree = trees[i]
-			const height = tree.conifer ? 3.2 : 4.6
-			const radius = tree.conifer ? 0.26 : 0.24
-			tr.position.set(tree.x, tree.y - 0.4, tree.z)
-			tr.rotation.y = tree.yaw
-			tr.scale.set(radius * tree.s, (height + 0.4) * tree.s, radius * tree.s)
-		})
-		const bark = new THREE.Color()
-		trees.forEach((tree, i) => trunks.setColorAt(i, bark.set(0x4a3a2c).multiplyScalar(tree.shade)))
-		content.add(trunks)
-
-		const leafA = new THREE.Color(0x3f6b3a)
-		const leafB = new THREE.Color(0x5f8a3c)
-		const leaf = new THREE.Color()
-		for (const [kind, geometry, darker] of [
-			[conifers, coniferFoliage(), 0.55],
-			[broadleaves, broadleafFoliage(), 0.75],
-		]) {
-			const mesh = scatter(geometry, matte(0xffffff, { flatShading: true }), kind.length, (i, tr) => {
-				const tree = kind[i]
-				tr.position.set(tree.x, tree.y, tree.z)
-				tr.rotation.y = tree.yaw
-				tr.scale.setScalar(tree.s)
-			})
-			kind.forEach((tree, i) =>
-				mesh.setColorAt(i, leaf.copy(leafA).lerp(leafB, tree.tone).multiplyScalar(tree.shade * darker)),
-			)
-			content.add(mesh)
-		}
-
-		// Rocks: flat-shaded, squashed, half sunk.
-		const stone = new THREE.Color()
-		const rocks = scatter(new THREE.DodecahedronGeometry(1, 0), matte(0xffffff, { flatShading: true }), ROCKS, (i, tr) => {
-			let x, z
-			do {
-				const r = 3.2 + rand() * rand() * 22
-				const a = (rand() - 0.5) * THREE.MathUtils.degToRad(190)
-				x = Math.sin(a) * r
-				z = -Math.cos(a) * r
-			} while (Math.abs(x) < 1.6 && z > -9)
-			const s = 0.2 + rand() * rand() * 0.8
-			const flat = 0.6 + rand() * 0.35
-			tr.position.set(x, heightAt(x, z) - s * flat * 0.35, z)
-			tr.rotation.set(rand() * 1.2, rand() * Math.PI * 2, rand() * 1.2)
-			tr.scale.set(s * (0.9 + rand() * 0.5), s * flat, s)
-		})
-		for (let i = 0; i < ROCKS; i++) rocks.setColorAt(i, stone.setHSL(0.09, 0.05 + rand() * 0.05, 0.26 + rand() * 0.1, THREE.SRGBColorSpace))
-		content.add(rocks)
+		if (kit) plantKit(kit, t, content)
 
 		// Fireflies: tiny bright spheres; the vertex shader drifts and pulses them.
 		const flyMaterial = new THREE.MeshBasicMaterial({
@@ -342,12 +458,45 @@ export default function create({ floorY, tier, LIVE }) {
 
 	build(tier)
 
+	// The kit goes into the content that is up when it lands, compiled first so
+	// a first visit straight into the forest does not stall a frame either.
+	const ready = loadGLTF(ASSETS.forestKit).then(async (gltf) => {
+		const loaded = extractKit(gltf)
+		const t = current
+		const staging = new THREE.Group()
+		if (!disposed) {
+			plantKit(loaded, t, staging)
+			await renderer.compileAsync(staging, camera, scene)
+		}
+		if (disposed) {
+			disposeGroup(staging)
+			return disposeKit(loaded)
+		}
+		kit = loaded
+		if (t === current) content.add(...staging.children)
+		else plantKit(kit, current, content) // the tier changed while compiling
+		disposeGroup(staging)
+	})
+
+	function disposeKit(k) {
+		const textures = new Set()
+		for (const parts of Object.values(k)) {
+			for (const { geometry, material } of parts) {
+				geometry.dispose()
+				if (material.map) textures.add(material.map)
+				material.dispose()
+			}
+		}
+		for (const texture of textures) texture.dispose()
+	}
+
 	return {
 		label: "Forest",
 		icon: "forest",
 		group,
 		groundColor: 0x3f4f2c,
-		fog: { near: 10, far: 90 },
+		fog: { near: 9, far: 80 },
+		ready,
 		update(elapsed, level) {
 			wind += (0.07 + level * 0.09 - wind) * 0.05
 			grassUniforms.uTime.value = elapsed
@@ -360,7 +509,9 @@ export default function create({ floorY, tier, LIVE }) {
 			build(next)
 		},
 		dispose() {
+			disposed = true
 			content.traverse((o) => o.isInstancedMesh && o.dispose())
+			if (kit) disposeKit(kit)
 		},
 	}
 }
