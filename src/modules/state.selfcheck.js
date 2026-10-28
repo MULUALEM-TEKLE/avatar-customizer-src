@@ -6,7 +6,7 @@
  */
 
 import assert from "node:assert/strict"
-import { CATEGORIES, PRESETS, BASE_LAYER_RULES } from "./config.js"
+import { CATEGORIES, PRESETS, COVERAGE, BODY_REGIONS } from "./config.js"
 import * as state from "./state.js"
 
 const stub = (name) => ({ name, visible: false })
@@ -105,6 +105,34 @@ run("base top hides under a hoodie but stays under an open jacket", () => {
 	assert.deepEqual(visibleNames("baseTop"), [])
 })
 
+run("base top stays under a short-sleeved tee (the forearms have no skin mesh)", () => {
+	state.select("tshirts", 0)
+	assert.deepEqual(visibleNames("baseTop"), ["Underwear_Bilal_top_base"])
+	assert.ok(state.coveredRegions().has("arms"))
+})
+
+run("every outfit the app can produce covers every body region", () => {
+	const keys = CATEGORIES.map((c) => c.key)
+	const sizes = keys.map((k) => FIXTURE[k].length)
+	let combos = 0
+	const walk = (i, outfit) => {
+		if (i === keys.length) {
+			state.applyOutfit(outfit)
+			const covered = state.coveredRegions()
+			for (const region of BODY_REGIONS) {
+				assert.ok(covered.has(region), `${region} uncovered for ${JSON.stringify(outfit)}`)
+			}
+			combos++
+			return
+		}
+		for (let index = -1; index < sizes[i]; index++) {
+			walk(i + 1, { ...outfit, [keys[i]]: index })
+		}
+	}
+	walk(0, {})
+	assert.ok(combos > 5000, `only ${combos} combinations walked`)
+})
+
 run("base bottom and base boot follow their coverers", () => {
 	assert.deepEqual(visibleNames("baseBottom"), ["Underwear_Bilal_bottom_base"])
 	assert.deepEqual(visibleNames("baseBoot"), ["__base_boot__"])
@@ -118,7 +146,7 @@ run("boots are actually wired up", () => {
 	// Regression: the old build never categorised `_boot`, so the whole category
 	// was silently inert and the base boot could never be replaced.
 	assert.ok(state.getItems("boots").length > 0)
-	assert.ok(BASE_LAYER_RULES.baseBoot.includes("boots"))
+	assert.ok(COVERAGE.boots.includes("feet"))
 })
 
 run("serialize/deserialize round-trips", () => {

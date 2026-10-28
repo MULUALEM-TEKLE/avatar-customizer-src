@@ -325,7 +325,7 @@ export const TIERS = {
 		shadowMapSize: 1024,
 		bloom: { strength: 0.28, radius: 0.5, threshold: 1 },
 		/** Depth of field + vignette: the figure is the visual centre. */
-		dof: { aperture: 0.00022, maxblur: 0.007 },
+		dof: { aperture: 0.0001, maxblur: 0.0025 },
 		/** 0, 1 or 2: how much geometry a place may spend. */
 		detail: 2,
 		starLayers: 2,

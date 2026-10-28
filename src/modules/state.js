@@ -14,7 +14,8 @@ import {
 	CATEGORIES,
 	BASE_CATEGORIES,
 	CONFLICTS,
-	BASE_LAYER_RULES,
+	COVERAGE,
+	BASE_LAYERS,
 	PRESETS,
 } from "./config.js"
 
@@ -175,10 +176,32 @@ function applyVisibility() {
 			item.visible = i === chosen
 		})
 	}
-	for (const [baseKey, coveredBy] of Object.entries(BASE_LAYER_RULES)) {
-		const covered = coveredBy.some((key) => selection.get(key) !== NONE)
-		for (const item of getItems(baseKey)) item.visible = !covered
+	const covered = garmentCoverage()
+	for (const [baseKey, regions] of Object.entries(BASE_LAYERS)) {
+		const hidden = regions.every((region) => covered.has(region))
+		for (const item of getItems(baseKey)) item.visible = !hidden
 	}
+}
+
+/** Regions covered by worn garments alone. */
+function garmentCoverage() {
+	const covered = new Set()
+	for (const { key } of CATEGORIES) {
+		if (selection.get(key) === NONE) continue
+		for (const region of COVERAGE[key] ?? []) covered.add(region)
+	}
+	return covered
+}
+
+/** Regions covered by anything visible: worn garments plus the base layers still showing. */
+export function coveredRegions() {
+	const covered = garmentCoverage()
+	for (const [baseKey, regions] of Object.entries(BASE_LAYERS)) {
+		if (getItems(baseKey).some((item) => item.visible)) {
+			for (const region of regions) covered.add(region)
+		}
+	}
+	return covered
 }
 
 /* ---------------------------------------------------------- subscription */

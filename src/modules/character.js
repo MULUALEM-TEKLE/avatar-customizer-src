@@ -212,6 +212,11 @@ export function update(delta) {
 	if (mixer) mixer.update(delta)
 }
 
+/** 0 freezes every clip in place (loader renders, reduced motion); 1 is normal. */
+export function setAnimationSpeed(scale) {
+	if (mixer) mixer.timeScale = scale
+}
+
 /* -------------------------------------------------------------- cleanup */
 
 export function disposeCharacter() {

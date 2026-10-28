@@ -74,11 +74,32 @@ export const CONFLICTS = {
  * A base layer shows only while nothing in `coveredBy` is worn.
  * Jackets deliberately do NOT cover the base top — the jacket meshes hang open.
  */
-export const BASE_LAYER_RULES = {
-	baseTop: ["hoodies", "coveralls", "tshirts"],
-	baseBottom: ["pants", "coveralls"],
-	baseBoot: ["boots"],
+/**
+ * Body regions a worn garment covers completely. A base layer stays visible
+ * until every region it covers is covered by a worn garment: a short-sleeved
+ * tee covers the torso but not the arms, so the long-sleeve base stays under it
+ * and the forearms never vanish; an open jacket covers the arms only, so the
+ * base shows through its front. The skin mesh is head and neck, the gloves are
+ * the hands; both are always on, so those regions need no rule.
+ */
+export const COVERAGE = {
+	tshirts: ["torso"],
+	hoodies: ["torso", "arms"],
+	jackets: ["arms"],
+	coveralls: ["torso", "arms", "legs"],
+	pants: ["legs"],
+	boots: ["feet"],
 }
+
+/** What each auto-managed underlayer covers. */
+export const BASE_LAYERS = {
+	baseTop: ["torso", "arms"],
+	baseBottom: ["legs"],
+	baseBoot: ["feet"],
+}
+
+/** Every region that must be covered by something visible, in every outfit. */
+export const BODY_REGIONS = ["torso", "arms", "legs", "feet"]
 
 /**
  * Animation clips surfaced in the pose picker, by clip name.

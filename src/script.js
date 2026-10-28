@@ -239,6 +239,10 @@ function sampleFrameCost(deltaMs) {
 	const index = TIER_ORDER.indexOf(currentTierName)
 	if (median > 22 && index > 0) {
 		applyTier(TIER_ORDER[index - 1])
+	} else if (median > 17.5 && world.hasDepthOfField()) {
+		// Not slow enough to drop a tier, but the depth pass is what tips it
+		// over the frame budget: keep the tier, lose the blur.
+		world.setDepthOfField(false)
 	} else if (median < 10 && index < TIER_ORDER.length - 1) {
 		applyTier(TIER_ORDER[index + 1])
 	}

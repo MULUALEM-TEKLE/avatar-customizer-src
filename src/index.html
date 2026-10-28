@@ -17,26 +17,10 @@
 		<link rel="stylesheet" href="./style.css" />
 		<link rel="icon" href="/favicon.png" type="image/png" />
 
-		<link rel="preconnect" href="https://fonts.googleapis.com" />
-		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-		<!-- media=print keeps the font CSS off the first paint; it switches to
-		     `all` on load. The loading screen hides the UI long before then. -->
-		<link
-			rel="stylesheet"
-			href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Raleway:wght@300;400;500&display=swap"
-			media="print"
-			onload="this.media='all'"
-		/>
-		<link
-			rel="stylesheet"
-			href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block"
-			media="print"
-			onload="this.media='all'"
-		/>
-		<noscript>
-			<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Raleway:wght@300;400;500&display=swap" />
-			<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" />
-		</noscript>
+		<!-- Fonts are self-hosted (static/fonts): no third-party request can
+		     leave the console showing glyph names in front of a client. -->
+		<link rel="preload" as="font" type="font/woff2" href="/fonts/instrument-serif-latin.woff2" crossorigin />
+		<link rel="preload" as="font" type="font/woff2" href="/fonts/material-symbols-subset.woff2" crossorigin />
 
 		<link rel="preload" as="image" href="/loader.webp" />
 		<link rel="preload" as="fetch" href="/models/bilal.glb" crossorigin />
@@ -55,8 +39,8 @@
 			</header>
 
 			<figure class="loading__plate">
-				<img src="/loader.webp" alt="" width="400" height="520" />
-				<figcaption>PL.01</figcaption>
+				<img src="/loader.webp" alt="" width="480" height="720" />
+				<figcaption>PL.01 · Turntable</figcaption>
 			</figure>
 
 			<div class="loading__meter">

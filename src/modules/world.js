@@ -23,6 +23,8 @@ let bokehPass = null
 let vignettePass = null
 let renderTarget = null
 const FOCUS_POINT = new THREE.Vector3(...CAMERA.target)
+/** Depth of field costs a second scene pass; the frame timer may switch it off. */
+let dofEnabled = true
 
 let key = null
 let fill = null
@@ -305,7 +307,8 @@ export function setFraming({ x = 0.5, y = 0.5 }, { animate = true } = {}) {
 
 function buildComposer() {
 	teardownComposer()
-	if (!tier.bloom && !tier.dof) return
+	const dof = dofEnabled ? tier.dof : null
+	if (!tier.bloom && !dof) return
 
 	renderTarget = new THREE.WebGLRenderTarget(1, 1, {
 		type: THREE.HalfFloatType, // clamping at 1.0 would make a >1.0 threshold extract nothing
@@ -319,11 +322,11 @@ function buildComposer() {
 	// camera distance to it (set every frame in render), the place behind
 	// falls off softly. A small aperture: the deck under the boots should
 	// still read as planks.
-	if (tier.dof) {
+	if (dof) {
 		bokehPass = new BokehPass(scene, camera, {
 			focus: camera.position.distanceTo(FOCUS_POINT),
-			aperture: tier.dof.aperture,
-			maxblur: tier.dof.maxblur,
+			aperture: dof.aperture,
+			maxblur: dof.maxblur,
 		})
 		composer.addPass(bokehPass)
 	}
@@ -336,13 +339,13 @@ function buildComposer() {
 		)
 		composer.addPass(bloomPass)
 	}
-	if (tier.dof) {
+	if (dof) {
 		// A quiet vignette, before tone mapping so it darkens rather than greys.
 		vignettePass = new ShaderPass(VignetteShader)
 		// darkness must stay <= 1: above it the shader mixes toward a negative
 		// colour and the corners go green.
-		vignettePass.uniforms.offset.value = 1.2
-		vignettePass.uniforms.darkness.value = 0.9
+		vignettePass.uniforms.offset.value = 1.35
+		vignettePass.uniforms.darkness.value = 0.6
 		composer.addPass(vignettePass)
 	}
 	// Must be last: it owns tone mapping and the sRGB conversion.
@@ -391,6 +394,17 @@ export function applyTier(name) {
 
 export function currentTier() {
 	return tier
+}
+
+/** The frame timer calls this when the high tier cannot afford the depth pass. */
+export function setDepthOfField(enabled) {
+	if (dofEnabled === enabled) return
+	dofEnabled = enabled
+	buildComposer()
+}
+
+export function hasDepthOfField() {
+	return Boolean(bokehPass)
 }
 
 /* --------------------------------------------------------------- frame */
