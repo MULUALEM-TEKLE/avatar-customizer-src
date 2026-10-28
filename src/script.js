@@ -57,6 +57,13 @@ async function boot() {
 	// The environment model and the HDR stream in after first render, so the
 	// only thing gating interactivity is the character — which is the product.
 	let gltf
+	// The HDR is 400 KB against the character's 3.2 MB: fetching it alongside
+	// costs a tenth of the download and lets the materials compile once, with
+	// the environment in place. Set after the first frame, it forces every
+	// standard material through a second compile, which froze the app for most
+	// of a second right after the reveal.
+	ensureEnvMap()
+
 	try {
 		gltf = await loadGLTF(ASSETS.character, {
 			expectedBytes: EXPECTED_BYTES.character,
@@ -91,6 +98,10 @@ async function boot() {
 	// where they will actually be.
 	const feetY = character.getFeetY()
 	world.setFloorHeight(feetY)
+
+	// Scenery streams from here, under the decode and the reveal, rather than
+	// after the loading screen has finished fading.
+	streamBackdrop({ feetY, tier })
 
 	controls.mountControls({
 		domElement: canvas,
@@ -130,6 +141,11 @@ async function boot() {
 		})
 	})
 
+	// ~30 programs; compiled synchronously on the first frame they held the
+	// main thread for about two seconds with the progress bar frozen at 98%.
+	// Parallel compile keeps the loading screen alive and finishes sooner.
+	await world.renderer.compileAsync(world.scene, world.camera)
+
 	// Start rendering before the loading screen goes, so the reveal uncovers a
 	// live scene rather than the first frame of one.
 	ready = true
@@ -147,8 +163,6 @@ async function boot() {
 	if (document.activeElement === document.body) {
 		canvas.focus({ preventScroll: true })
 	}
-
-	streamBackdrop({ feetY, tier })
 }
 
 /**

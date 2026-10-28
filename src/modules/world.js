@@ -53,6 +53,9 @@ function createRenderer(canvas) {
 	// PCFSoftShadowMap is deprecated in r185 and silently downgrades to PCF, so
 	// ask for PCF directly rather than shipping a warning on every load.
 	renderer.shadowMap.type = THREE.PCFShadowMap
+	// Reading shader info logs after every link forces a synchronous wait on
+	// the compiler; the trace put ~1.5 s of the load there. Dev keeps them.
+	renderer.debug.checkShaderErrors = import.meta.env.DEV
 }
 
 function createCamera() {
