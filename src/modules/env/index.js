@@ -18,6 +18,8 @@ import dunes from "./dunes.js"
  *     group,                  // THREE.Group holding everything; added to the backdrop here
  *     groundColor,            // hex: the dominant ground tone, fed to the sky probe
  *     fog?: { near, far },    // overrides the preset's distances while this place is up
+ *     ready?: Promise,        // resolves once any asset the place fetches is in the group;
+ *                             // the swap waits for it (and for the shader compile) first
  *     update?(elapsed, audioLevel),
  *     rebuildForTier?(tier),  // tier.detail is 0 (low), 1 (medium) or 2 (high)
  *     dispose(),              // free everything; the manager removes the group
@@ -100,14 +102,20 @@ export function setTheme(name, { immediate = false } = {}) {
 		show(next, name)
 		return true
 	}
-	renderer.compileAsync(next.group, camera, scene).then(() => {
-		if (token !== swapToken) {
-			next.dispose()
-			disposeGroup(next.group)
-			return
-		}
-		show(next, name)
-	})
+	Promise.resolve(next.ready)
+		.then(() => renderer.compileAsync(next.group, camera, scene))
+		.then(() => {
+			if (token !== swapToken) {
+				next.dispose()
+				disposeGroup(next.group)
+				return
+			}
+			show(next, name)
+		})
+		.catch((error) => {
+			console.error(error)
+			if (token === swapToken) pendingName = currentName
+		})
 	return true
 }
 
