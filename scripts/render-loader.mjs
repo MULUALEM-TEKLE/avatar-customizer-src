@@ -111,7 +111,6 @@ async function main() {
 	const delay = Math.round(1000 / FPS)
 	const args = ["-loop", "0", "-lossy", "-q", String(QUALITY), "-m", "6", "-d", String(delay), ...files, "-o", OUT]
 	execFileSync("img2webp", args, { stdio: "inherit" })
-	fs.copyFileSync(files[0], OUT.replace(/\.webp$/, "-frame0.png"))
 	console.log(`${OUT}: ${Math.round(fs.statSync(OUT).size / 1024)} KB, ${FRAMES} frames @ ${FPS} fps, ${W}x${H}`)
 }
 
