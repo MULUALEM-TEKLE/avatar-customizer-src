@@ -1,6 +1,6 @@
 # Handoff
 
-Updated: 2026-10-28 21:50, launch film v2 in flight (a41b9a5 storyboard), session: places
+Updated: 2026-10-28 22:40, launch film v2 delivered (2df6c57), session: places
 
 ## Goal
 
@@ -8,7 +8,7 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## In flight
 
-- master (orchestrator): launch film v2 — two workers: `synth.mjs` revision (continuous flow, resolved ending, writes `_/launch/v2/track.wav`) and `render.mjs` v2 (60 fps, direct camera keyframes, no loader, writes `_/launch/v2/frames` and `launch-v2.mp4`). v1 stays at `_/launch/launch.mp4` and `_/social/2026-10-28-launch/`. Then: review, re-assemble with the v2 track, social export v2, portfolio handoff to the xar-project-highlights session.
+- none
 
 ## Blocked / waiting
 
@@ -35,6 +35,8 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 - No framework, no TypeScript, no state library (see `uplift.md`).
 
 ## Next
+
+- Launch film v3 if wanted: captions inside the 9:16 safe area, beat punch only in the cycle sections, a listen-through of the track by a human (all audio checks were measurements).
 
 - Places polish if wanted: a crossfade between places (today it is a hard swap after an async compile), a social capture per place, the pier is 4 m wide (flat 2.0 m, contract asks 2.5 m; the light pool still fits).
 - Low-tier devices: measure the sky-probe PMREM cost on a real phone (now only the settled frame refreshes on low).
