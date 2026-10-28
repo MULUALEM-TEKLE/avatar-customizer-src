@@ -1,0 +1,31 @@
+{
+	"bpm": 124,
+	"fps": 30,
+	"width": 1920,
+	"height": 1080,
+	"notes": "Times are in bars (1 bar = 4 beats = 1.9355 s at 124 BPM). Every cut lands on a bar line; half-bar cuts in the montage land on beat 3. Scenes render frame by frame; the character animation is stepped 1/fps per frame.",
+	"scenes": [
+		{ "bars": [0, 2], "type": "title", "title": "Bilal", "sub": "Autumn/Winter — a configurable wardrobe.", "fadeIn": 0.5, "fadeOut": 0.25 },
+		{ "bars": [2, 4], "type": "loader", "place": "harbor", "preset": "dusk", "notes": "The real loading screen: progress runs 0 to 100 over the two bars, dismiss on bar 4 so the reveal lands on the downbeat." },
+		{ "bars": [4, 6], "type": "hero", "place": "harbor", "preset": "dusk", "look": "commuter", "pose": "Male_Idle1", "ui": false, "yaw": [-0.35, 0.25], "zoom": [2.75, 2.3] },
+		{ "bars": [6, 8], "type": "hero", "place": "harbor", "preset": "night", "look": "commuter", "pose": "Male_Idle1", "ui": false, "yaw": [0.25, 0.6], "zoom": [2.3, 2.1], "caption": "Four places." },
+		{ "bars": [8, 10], "type": "hero", "place": "rooftop", "preset": "dawn", "look": "offshift", "pose": "Male_Idle2", "ui": false, "yaw": [0.4, -0.2], "zoom": [2.6, 2.4], "caption": "Four hours of light." },
+		{ "bars": [10, 12], "type": "hero", "place": "rooftop", "preset": "night", "look": "offshift", "pose": "Male_Idle2", "ui": false, "yaw": [-0.2, -0.6], "zoom": [2.4, 2.0] },
+		{ "bars": [12, 16], "type": "wardrobe", "place": "forest", "preset": "noon", "pose": "Male_Idle1", "ui": true, "yaw": [0, 0.3], "zoom": [2.75, 2.75], "cuts": [
+			{ "bar": 12, "look": "basics" }, { "bar": 13, "select": ["hoodies", 1] }, { "bar": 14, "select": ["hoodies", 3] }, { "bar": 14.5, "select": ["pants", 2] }, { "bar": 15, "select": ["jackets", 0], "preset": "dusk" }
+		], "caption": "Every garment, every combination." },
+		{ "bars": [16, 18], "type": "hero", "place": "dunes", "preset": "dawn", "look": "deckhand", "pose": "MagicSpell", "ui": false, "yaw": [0.2, 0.2], "zoom": [2.75, 2.4], "caption": "Pose it." },
+		{ "bars": [18, 20], "type": "hero", "place": "dunes", "preset": "dusk", "look": "deckhand", "pose": "Flying", "ui": false, "yaw": [0.2, -0.3], "zoom": [2.4, 3.2] },
+		{ "bars": [20, 24], "type": "montage", "half": true, "ui": false, "cuts": [
+			{ "place": "harbor", "preset": "dawn", "look": "layered", "pose": "Victory" },
+			{ "place": "rooftop", "preset": "dusk", "look": "downpour", "pose": "Sad_Idle" },
+			{ "place": "forest", "preset": "night", "look": "offshift", "pose": "DynamicPose" },
+			{ "place": "dunes", "preset": "noon", "look": "basics", "pose": "Male_Idle2" },
+			{ "place": "harbor", "preset": "noon", "look": "deckhand", "pose": "Defeat" },
+			{ "place": "rooftop", "preset": "dawn", "look": "commuter", "pose": "Falling_to_Landing" },
+			{ "place": "forest", "preset": "dusk", "look": "layered", "pose": "Floating" },
+			{ "place": "dunes", "preset": "night", "look": "downpour", "pose": "Male_Idle1" }
+		], "caption": "Capture it. Share it." },
+		{ "bars": [24, 26], "type": "title", "title": "Bilal", "sub": "avatar-customizer.mulualemxar.workers.dev", "fadeIn": 0.5, "fadeOut": 0.75 }
+	]
+}

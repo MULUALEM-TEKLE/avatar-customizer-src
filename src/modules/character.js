@@ -217,6 +217,15 @@ export function setAnimationSpeed(scale) {
 	if (mixer) mixer.timeScale = scale
 }
 
+/** Advance the clips by `seconds` regardless of timeScale (frame-exact renders). */
+export function stepAnimation(seconds) {
+	if (!mixer) return
+	const scale = mixer.timeScale
+	mixer.timeScale = 1
+	mixer.update(seconds)
+	mixer.timeScale = scale
+}
+
 /* -------------------------------------------------------------- cleanup */
 
 export function disposeCharacter() {

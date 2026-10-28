@@ -21,7 +21,8 @@ export const SPECIAL_MESHES = {
 	hidden: ["Cube"],
 }
 
-export const SKIN_COLOR = "#6c5238"
+/** Multiplies the skin texture, which is a fair tone on its own; this keeps it warm. */
+export const SKIN_COLOR = "#edd6c4"
 
 /**
  * Mesh-name suffix -> category key. Evaluated in order, first match wins, so the
