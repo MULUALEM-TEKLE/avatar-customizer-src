@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * Renders the launch video frame by frame from the live app, per storyboard.json.
- * Every frame is computed from its index alone (bar time -> section -> cut), so
- * a partial re-render (--sections) matches a full one.
+ * Renders the launch video frame by frame from the live app, per storyboard.json (v2).
+ * Every frame is computed from its index alone (bar time -> section -> cut -> camera
+ * keyframes), so a partial re-render (--sections) matches a full one. The camera is
+ * set directly (controls.setExternalCamera); the letterbox is added in assemble.sh.
  *
- *   node scripts/launch-video/render.mjs --url http://localhost:5190 --out _/launch/frames [--sections 4-8]
+ *   node scripts/launch-video/render.mjs --url http://localhost:5191 --out _/launch/v2/frames [--sections 8-16]
  *
  * --sections takes a bar range [from, to). Headless Chrome over CDP, no dependencies.
  */
@@ -18,7 +19,7 @@ const arg = (k, d) => {
 	return i > -1 ? process.argv[i + 1] : d
 }
 const BASE = arg("--url", "http://localhost:5190").replace(/\/$/, "")
-const OUT = arg("--out", "_/launch/frames")
+const OUT = arg("--out", "_/launch/v2/frames")
 const SB = JSON.parse(fs.readFileSync(new URL("./storyboard.json", import.meta.url)))
 const [FROM_BAR, TO_BAR] = (arg("--sections", `0-${SB.bars}`)).split("-").map(Number)
 const CHROME = process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -28,16 +29,17 @@ const { fps: FPS, width: W, height: H } = SB
 /* ------------------------------------------------------------ timeline */
 
 const BAR_S = (4 * 60) / SB.bpm
-const FPB = BAR_S * FPS // frames per bar, 58.06
+const FPB = BAR_S * FPS // frames per bar, 116.13 at 60 fps
 const frameOf = (bar) => Math.round(bar * FPB)
 const TOTAL = frameOf(SB.bars)
 const BEAT = 0.25 // in bars
-const LETTERBOX = Math.round((H - W / 2.39) / 2) // 2.39:1 in a 1920x1080 frame: 138 px
+const LETTERBOX = Math.round((H - W / 2.39) / 2) // 2.39:1 bars added by assemble.sh: 138 px; captions sit above them
 const UNIT = { beat: BEAT, bar: 1 }
 
 const sectionAt = (f) => SB.sections.find((s) => f >= frameOf(s.bars[0]) && f < frameOf(s.bars[1]))
 const clamp01 = (x) => Math.min(1, Math.max(0, x))
 const easeOut = (x) => 1 - Math.pow(1 - clamp01(x), 3)
+const smooth = (x) => x * x * (3 - 2 * x)
 const lerp = (a, b, t) => a + (b - a) * t
 
 /** [place, preset, look] of the cut that frame f falls in. */
@@ -60,12 +62,26 @@ function sinceGrid(f, from, to, every) {
 	return best
 }
 
+/** Camera {pos, look, fov} for frame f: smoothstep between the keyframes of the section or bar it falls in. */
+function cameraAt(s, f) {
+	const keys = s.bars_plan ? s.bars_plan.find((b) => f >= frameOf(b.bar) && f < frameOf(b.bar + 1)).camera : s.camera
+	let i = 0
+	while (i + 2 < keys.length && frameOf(keys[i + 1].at) <= f) i++
+	const [a, b] = [keys[i], keys[i + 1] ?? keys[i]]
+	const u = b === a ? 0 : smooth(clamp01((f - frameOf(a.at)) / (frameOf(b.at) - frameOf(a.at))))
+	const mix = (p, q) => p.map((v, k) => lerp(v, q[k], u))
+	return { pos: mix(a.pos, b.pos), look: mix(a.look, b.look), fov: lerp(a.fov, b.fov, u) }
+}
+
+/** ~0.3 Hz drift in [-1, 1]: two detuned sines per axis, so it never visibly loops. */
+const drift = (t, k) => 0.6 * Math.sin(2 * Math.PI * 0.3 * t + k * 2.1) + 0.4 * Math.sin(2 * Math.PI * 0.43 * t + k * 4.7 + 1)
+
 /** Everything the page needs for frame f, as plain data. */
 function plan(f) {
 	const s = sectionAt(f)
 	const t = (f - frameOf(s.bars[0])) / FPS // seconds into the section
 	const dur = (frameOf(s.bars[1]) - frameOf(s.bars[0])) / FPS
-	const p = { type: s.type, title: null, caption: null, letterbox: 0, flash: 0 }
+	const p = { type: s.type, title: null, caption: null, flash: 0 }
 
 	if (s.type === "title") {
 		const tin = s.fadeIn
@@ -83,22 +99,15 @@ function plan(f) {
 	}
 
 	if (s.type === "hero" || s.type === "cycle") {
-		const u = (f - frameOf(s.bars[0])) / (frameOf(s.bars[1]) - frameOf(s.bars[0]))
 		const [place, preset, look] = cutAt(s, f)
-		// Beat punch: x0.985 on the kick, back to 1 over 5 frames.
-		const n = sinceGrid(f, 4, 24, BEAT)
-		const punch = n < 5 ? 1 - 0.015 * Math.pow(1 - n / 5, 2) : 1
-		Object.assign(p, {
-			place,
-			preset,
-			look,
-			clip: s.clip,
-			yaw: lerp(s.yaw?.[0] ?? 0, s.yaw?.[1] ?? 0, u),
-			distance: lerp(s.zoom[0], s.zoom[1], u) * punch,
-		})
-		// Letterbox in over the first 0.5 s of bar 4, out over the last 0.5 s before bar 24.
-		const tv = f / FPS
-		p.letterbox = LETTERBOX * Math.min(easeOut((tv - frameOf(4) / FPS) / 0.5), easeOut((frameOf(24) / FPS - tv) / 0.5))
+		const cam = cameraAt(s, f)
+		// Hero only: ±1 cm of organic drift, felt rather than seen.
+		if (s.type === "hero") cam.pos = cam.pos.map((v, k) => v + 0.01 * drift(f / FPS, k))
+		// Beat punch: fov x0.985 on the kick, back to 1 over 8 frames.
+		const n = sinceGrid(f, 2, 24, BEAT)
+		if (n < 8) cam.fov *= 1 - 0.015 * Math.pow(1 - n / 8, 2)
+		// Cycle shots are tight: a 54 px lens shift down keeps head air under the 138 px letterbox (heroes keep their soles).
+		Object.assign(p, { place, preset, look, clip: s.clip, cam, framingY: s.type === "cycle" ? 0.55 : 0.5 })
 	}
 
 	if (s.caption) {
@@ -135,13 +144,30 @@ window.__launch = (async () => {
 	const raf = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
 	await Promise.all(['400 140px "Instrument Serif"', 'italic 400 40px "Instrument Serif"', '300 28px "Raleway"'].map((f) => document.fonts.load(f)))
 
-	// Visit every place once so later swaps are instant.
+	controls.setExternalCamera(true)
+	controls.setView({ yaw: 0 })
+	world.setFraming({ x: 0.5, y: 0.5 }, { animate: false })
+	world.camera.position.set(0, 0.2, 2.5)
+	world.camera.lookAt(0, 0.3, 0)
+	// Visit every place under every light and every look once, so nothing compiles or uploads during the film.
+	const mem = () => ({ ...world.renderer.info.memory, programs: world.renderer.info.programs?.length ?? 0 })
+	window.__mem = mem
+	const before = mem()
 	for (const name of env.THEME_ORDER) {
 		env.setTheme(name, { immediate: true })
 		await env.whenReady()
-		await world.renderer.compileAsync(world.scene, world.camera)
-		await raf()
+		for (const p of ["dawn", "noon", "dusk", "night"]) {
+			presets.applyPreset(p, { animate: false })
+			await raf()
+		}
+		for (const l of ["commuter", "downpour", "offshift", "deckhand", "basics", "layered"]) {
+			state.applyPreset(l)
+			world.warmTextures(character.getRoot())
+			await world.renderer.compileAsync(world.scene, world.camera)
+			await raf()
+		}
 	}
+	window.__warm = { before, after: mem() }
 
 	const css = document.createElement("style")
 	css.textContent = ${"`"}
@@ -151,7 +177,6 @@ window.__launch = (async () => {
 		#lv .rule { height: 1px; background: rgba(244,241,235,0.5); margin: 34px 0 30px; }
 		#lv .s { font: 300 28px/1.3 "Raleway", sans-serif; letter-spacing: 0.06em; }
 		#lv .s.end { font-size: 22px; letter-spacing: 0.12em; text-transform: uppercase; }
-		#lv .bar { position: absolute; left: 0; right: 0; background: #000; }
 		#lv .cap { position: absolute; left: 120px; font: italic 400 40px/1.2 "Instrument Serif", serif; text-shadow: 0 1px 12px rgba(0,0,0,0.55); }
 		#lv .cap i { display: block; height: 1px; background: rgba(244,241,235,0.6); margin-bottom: 14px; }
 		#lv .flash { position: absolute; inset: 0; background: #fff; }
@@ -159,28 +184,31 @@ window.__launch = (async () => {
 	document.head.append(css)
 	const root = document.createElement("div")
 	root.id = "lv"
-	root.innerHTML = '<div class="bar" style="top:0"></div><div class="bar" style="bottom:0"></div><div class="cap"><i></i><span></span></div><div class="card"><div class="t"></div><div class="rule"></div><div class="s"></div></div><div class="flash"></div>'
+	root.innerHTML = '<div class="cap"><i></i><span></span></div><div class="card"><div class="t"></div><div class="rule"></div><div class="s"></div></div><div class="flash"></div>'
 	document.body.append(root)
 	const $ = (s) => root.querySelector(s)
-	const [top, bottom] = root.querySelectorAll(".bar")
 	const last = {}
 
 	window.__anim = (clip, start, reset) => {
 		// playPose ignores the clip already playing; the timeline's first frame restarts it from zero.
 		if (reset) character.playPose(clip === "Male_Idle2" ? "Male_Idle1" : "Male_Idle2", 0)
 		if (start) character.playPose(clip, 0)
-		character.stepAnimation(1 / 30)
+		character.stepAnimation(1 / ${FPS})
 	}
 	window.__frame = async (p, a) => {
 		if (p.place && p.place !== last.place) env.setTheme((last.place = p.place), { immediate: true })
 		if (p.preset && p.preset !== last.preset) presets.applyPreset((last.preset = p.preset), { animate: false })
 		if (p.look && p.look !== last.look) state.applyPreset((last.look = p.look))
 		if (a) window.__anim(a.clip, a.start, a.reset)
-		if (p.distance) controls.setView({ yaw: p.yaw, distance: p.distance })
-		// Letterboxed shots sit the figure ~50 px lower so the bars crop boots, not the head.
-		world.setFraming({ x: 0.5, y: p.distance ? 0.545 : 0.5 }, { animate: false })
-
-		top.style.height = bottom.style.height = p.letterbox + "px"
+		if (p.cam) {
+			controls.setView({ yaw: 0 }) // also resets the idle timer, so auto-rotate never starts
+			const c = world.camera
+			c.position.set(...p.cam.pos)
+			c.lookAt(...p.cam.look)
+			c.fov = p.cam.fov
+			c.updateProjectionMatrix()
+			world.setFraming({ x: 0.5, y: p.framingY }, { animate: false })
+		}
 		const card = $(".card")
 		card.style.display = p.title ? "flex" : "none"
 		if (p.title) {
@@ -198,7 +226,7 @@ window.__launch = (async () => {
 		const cap = $(".cap")
 		cap.style.opacity = p.caption ? p.caption.o : 0
 		if (p.caption) {
-			cap.style.bottom = p.letterbox + 24 + "px"
+			cap.style.bottom = ${LETTERBOX} + 24 + "px"
 			cap.querySelector("span").textContent = p.caption.text
 			cap.querySelector("i").style.width = p.caption.rule + "px"
 		}
@@ -207,17 +235,6 @@ window.__launch = (async () => {
 	}
 	character.setAnimationSpeed(0)
 	return "ok"
-})()`
-
-/** Loader state for one capture; also centres the figure as soon as world.js exists, so the reveal matches the hero. */
-const PROBE = `(async () => {
-	const el = document.getElementById("loading")
-	if (!el) return { s: document.readyState === "loading" ? "none" : "gone" }
-	const u = performance.getEntriesByType("resource").map((e) => e.name).find((n) => /\\/modules\\/world\\.js(\\?|$)/.test(n))
-	// Never await the import: it would wait on the whole throttled module graph and stall the captures.
-	if (u) window.__wp ??= import(u).then((m) => (window.__w = m))
-	window.__w?.setFraming({ x: 0.5, y: 0.5 }, { animate: false })
-	return { s: "loading", pct: parseFloat(document.getElementById("loading-percent")?.textContent) || 0 }
 })()`
 
 const HIDE_UI = `document.addEventListener("DOMContentLoaded", () => {
@@ -281,43 +298,16 @@ async function main() {
 	await send("Network.enable")
 	await send("Network.setCacheDisabled", { cacheDisabled: true })
 	await send("Page.addScriptToEvaluateOnNewDocument", { source: HIDE_UI })
-	const loader = SB.sections.find((s) => s.type === "loader")
-	const url = `${BASE}/?e=${loader.place}&t=${loader.preset}&q=high&p=${SB.sections.find((s) => s.clip).clip}`
+	const hero = SB.sections.find((s) => s.type === "hero")
+	const url = `${BASE}/?e=${hero.place}&t=${hero.preset}&q=high&p=${hero.clip}`
 	const started = Date.now()
-
-	const [L0, L1] = [frameOf(loader.bars[0]), frameOf(loader.bars[1])]
-	const wantLoader = L0 < frameOf(TO_BAR) && L1 > frameOf(FROM_BAR)
-	if (wantLoader) {
-		// The real loading screen under throttling, then resampled by timestamp to exactly its bars.
-		await send("Network.emulateNetworkConditions", { offline: false, latency: 20, downloadThroughput: 900 * 1024, uploadThroughput: 900 * 1024 })
-		await send("Page.navigate", { url })
-		const caps = []
-		for (let i = 0; i < 2000; i++) {
-			const state = await evaluate(PROBE).catch(() => ({ s: "none" }))
-			if (state.s === "none") continue
-			const t = performance.now()
-			caps.push({ t, pct: state.pct, png: await shot() })
-			if (state.s === "gone") break
-		}
-		await send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 })
-		// Skip the module-graph wait at 0 %: start 1.5 s before the bar first moves (the dev server sits at 0 % while the module graph loads).
-		const moving = caps.find((c) => c.pct > 0) ?? caps[0]
-		const t0 = Math.max(caps[0].t, moving.t - 1500)
-		const t1 = caps.at(-1).t
-		const n = L1 - L0
-		for (let j = 0; j < n; j++) {
-			const t = t0 + ((t1 - t0) * j) / (n - 1)
-			const c = caps.findLast((c) => c.t <= t + 1e-6)
-			if (L0 + j >= frameOf(FROM_BAR) && L0 + j < frameOf(TO_BAR)) fs.writeFileSync(name(L0 + j), c.png)
-		}
-		if (process.env.DEBUG) console.log(caps.map((c) => `${Math.round(c.t - caps[0].t)}:${c.pct}`).join(" "))
-		console.log(`loader: ${caps.length} captures over ${((t1 - t0) / 1000).toFixed(2)} s -> ${n} frames`)
-	} else {
-		await send("Page.navigate", { url })
-	}
+	await send("Page.navigate", { url })
 	await evaluate(`new Promise((r) => { const poll = () => (document.readyState !== "loading" && !document.getElementById("loading")) ? setTimeout(r, 1500) : setTimeout(poll, 150); poll() })`)
 	await evaluate(PAGE)
 	await evaluate("window.__launch")
+	console.log("warm-up memory", JSON.stringify(await evaluate("window.__warm")))
+	// Settle on the first scene's place, light and look under the title card, so bar 2 opens clean.
+	for (let i = 0; i < 3; i++) await evaluate(`window.__frame(${JSON.stringify(plan(ANIM_START))}, null)`)
 
 	const f0 = frameOf(FROM_BAR)
 	const f1 = Math.min(frameOf(TO_BAR), TOTAL)
@@ -333,14 +323,14 @@ async function main() {
 	let count = 0
 	for (let f = f0; f < f1; f++) {
 		const p = plan(f)
-		if (p.type === "loader") continue
 		const a = f >= ANIM_START ? clipAt(f) : null
 		await evaluate(`window.__frame(${JSON.stringify(p)}, ${JSON.stringify(a)})`)
 		fs.writeFileSync(name(f), await shot())
 		count++
-		if (count % 100 === 0) console.log(`frame ${f + 1}/${TOTAL}`)
+		if (count % 250 === 0) console.log(`frame ${f + 1}/${TOTAL}`, JSON.stringify(await evaluate("window.__mem()")))
 	}
 	const ms = Date.now() - t
+	console.log("end memory", JSON.stringify(await evaluate("window.__mem()")))
 	console.log(`${count} frames in ${(ms / 1000).toFixed(1)} s (${(ms / Math.max(1, count)).toFixed(0)} ms each); total ${((Date.now() - started) / 1000).toFixed(1)} s; ${TOTAL} frames in the full cut`)
 	await send("Browser.close").catch(() => {})
 	ws.close()
