@@ -1632,6 +1632,9 @@ kbd {
 
 	.panel__tabs {
 		display: flex;
+		/* .seg is fit-content: the strip grew to 974 px past the screen edge,
+		   so it never scrolled and stopped at T-Shirts. */
+		width: auto;
 		gap: 6px;
 		padding: 0 20px;
 		height: 40px;
