@@ -5,11 +5,13 @@
  * keyframes), so a partial re-render (--sections) matches a full one. The camera is
  * set directly (controls.setExternalCamera); the letterbox is added in assemble.sh.
  *
- *   node scripts/launch-video/render.mjs --url http://localhost:5191 --out _/launch/v2/frames [--sections 8-16]
+ *   node scripts/launch-video/render.mjs --url http://localhost:5191 --out _/launch/v2/frames [--sections 8-16] [--storyboard storyboard-v3.json]
+ *
+ * An "entrance" section is not rendered: its frames are cut from a screencast (`source`, `segments` in seconds) with ffmpeg.
  *
  * --sections takes a bar range [from, to). Headless Chrome over CDP, no dependencies.
  */
-import { spawn } from "node:child_process"
+import { spawn, execFileSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -20,7 +22,7 @@ const arg = (k, d) => {
 }
 const BASE = arg("--url", "http://localhost:5190").replace(/\/$/, "")
 const OUT = arg("--out", "_/launch/v2/frames")
-const SB = JSON.parse(fs.readFileSync(new URL("./storyboard.json", import.meta.url)))
+const SB = JSON.parse(fs.readFileSync(new URL("./" + arg("--storyboard", "storyboard.json"), import.meta.url)))
 const [FROM_BAR, TO_BAR] = (arg("--sections", `0-${SB.bars}`)).split("-").map(Number)
 const CHROME = process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 const PORT = 9800 + Math.floor(Math.random() * 300)
@@ -104,7 +106,7 @@ function plan(f) {
 		// Hero only: ±1 cm of organic drift, felt rather than seen.
 		if (s.type === "hero") cam.pos = cam.pos.map((v, k) => v + 0.01 * drift(f / FPS, k))
 		// Beat punch: fov x0.985 on the kick, back to 1 over 8 frames.
-		const n = sinceGrid(f, 2, 24, BEAT)
+		const n = sinceGrid(f, ...(SB.punch ?? [2, 24]), BEAT)
 		if (n < 8) cam.fov *= 1 - 0.015 * Math.pow(1 - n / 8, 2)
 		// Cycle shots are tight: a 54 px lens shift down keeps head air under the 138 px letterbox (heroes keep their soles).
 		Object.assign(p, { place, preset, look, clip: s.clip, cam, framingY: s.type === "cycle" ? 0.55 : 0.5 })
@@ -119,7 +121,7 @@ function plan(f) {
 	}
 
 	// Drop flash: one frame at 35 %, one at 25 %.
-	for (const bar of [16, 24]) {
+	for (const bar of SB.flashes ?? [16, 24]) {
 		if (f === frameOf(bar)) p.flash = 0.35
 		if (f === frameOf(bar) + 1) p.flash = 0.25
 	}
@@ -141,6 +143,8 @@ const PAGE = String.raw`
 window.__launch = (async () => {
 	const mod = async (name) => { const u = performance.getEntriesByType("resource").map((e) => e.name).find((n) => new RegExp("/modules/" + name + "\\.js(\\?|$)").test(n)); return import(u) }
 	const [world, character, controls, env, presets, state] = await Promise.all(["world", "character", "controls", "env/index", "presets", "state"].map(mod))
+	const OUTFITS = ${JSON.stringify(SB.outfits ?? {})}
+	const wear = (l) => (OUTFITS[l] ? state.applyOutfit(OUTFITS[l]) : state.applyPreset(l))
 	const raf = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
 	await Promise.all(['400 140px "Instrument Serif"', 'italic 400 40px "Instrument Serif"', '300 28px "Raleway"'].map((f) => document.fonts.load(f)))
 
@@ -160,8 +164,8 @@ window.__launch = (async () => {
 			presets.applyPreset(p, { animate: false })
 			await raf()
 		}
-		for (const l of ["commuter", "downpour", "offshift", "deckhand", "basics", "layered"]) {
-			state.applyPreset(l)
+		for (const l of ["commuter", "downpour", "offshift", "deckhand", "basics", "layered", ...Object.keys(OUTFITS)]) {
+			wear(l)
 			world.warmTextures(character.getRoot())
 			await world.renderer.compileAsync(world.scene, world.camera)
 			await raf()
@@ -198,7 +202,7 @@ window.__launch = (async () => {
 	window.__frame = async (p, a) => {
 		if (p.place && p.place !== last.place) env.setTheme((last.place = p.place), { immediate: true })
 		if (p.preset && p.preset !== last.preset) presets.applyPreset((last.preset = p.preset), { animate: false })
-		if (p.look && p.look !== last.look) state.applyPreset((last.look = p.look))
+		if (p.look && p.look !== last.look) wear((last.look = p.look))
 		if (a) window.__anim(a.clip, a.start, a.reset)
 		if (p.cam) {
 			controls.setView({ yaw: 0 }) // also resets the idle timer, so auto-rotate never starts
@@ -321,7 +325,14 @@ async function main() {
 
 	const t = Date.now()
 	let count = 0
+	for (const s of SB.sections.filter((s) => s.type === "entrance" && frameOf(s.bars[1]) > f0 && frameOf(s.bars[0]) < f1)) {
+		const a = frameOf(s.bars[0])
+		const sel = s.segments.map(([from, to]) => `between(t,${from},${to})`).join("+")
+		execFileSync("ffmpeg", ["-v", "error", "-y", "-i", s.source, "-vf", `fps=${FPS},select='${sel}',setpts=N/${FPS}/TB,scale=${W}:${H}`, "-fps_mode", "passthrough", "-frames:v", String(frameOf(s.bars[1]) - a), "-start_number", String(a + 1), path.join(OUT, "frame-%06d.png")])
+		console.log(`entrance: frames ${a + 1}-${frameOf(s.bars[1])} from ${s.source}`)
+	}
 	for (let f = f0; f < f1; f++) {
+		if (sectionAt(f).type === "entrance") continue
 		const p = plan(f)
 		const a = f >= ANIM_START ? clipAt(f) : null
 		await evaluate(`window.__frame(${JSON.stringify(p)}, ${JSON.stringify(a)})`)

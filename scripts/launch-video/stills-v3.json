@@ -1,0 +1,263 @@
+[
+	{
+		"name": "harbor-dusk",
+		"place": "harbor",
+		"preset": "dusk",
+		"outfit": {
+			"tshirts": 0,
+			"pants": 0,
+			"boots": 0,
+			"bags": 0
+		},
+		"cam": {
+			"pos": [
+				0.9,
+				0.3,
+				3.0
+			],
+			"look": [
+				0,
+				0.0,
+				0
+			],
+			"fov": 40
+		},
+		"dpr": 2
+	},
+	{
+		"name": "harbor-dawn",
+		"place": "harbor",
+		"preset": "dawn",
+		"outfit": {
+			"tshirts": 0,
+			"pants": 0,
+			"boots": 0,
+			"bags": 0
+		},
+		"cam": {
+			"pos": [
+				0.9,
+				0.3,
+				3.0
+			],
+			"look": [
+				0,
+				0.0,
+				0
+			],
+			"fov": 40
+		},
+		"dpr": 2
+	},
+	{
+		"name": "harbor-dusk-ui",
+		"place": "harbor",
+		"preset": "dusk",
+		"outfit": {
+			"tshirts": 0,
+			"pants": 0,
+			"boots": 0,
+			"bags": 0
+		},
+		"ui": true,
+		"dpr": 2
+	},
+	{
+		"name": "rooftop-dawn",
+		"place": "rooftop",
+		"preset": "dawn",
+		"outfit": {
+			"tshirts": 0,
+			"pants": 1,
+			"boots": 0
+		},
+		"cam": {
+			"pos": [
+				-0.9,
+				0.3,
+				3.0
+			],
+			"look": [
+				0,
+				0.0,
+				0
+			],
+			"fov": 40
+		},
+		"dpr": 2
+	},
+	{
+		"name": "rooftop-dusk",
+		"place": "rooftop",
+		"preset": "dusk",
+		"outfit": {
+			"tshirts": 0,
+			"pants": 1,
+			"boots": 0
+		},
+		"cam": {
+			"pos": [
+				-0.9,
+				0.3,
+				3.0
+			],
+			"look": [
+				0,
+				0.0,
+				0
+			],
+			"fov": 40
+		},
+		"dpr": 2
+	},
+	{
+		"name": "rooftop-dawn-ui",
+		"place": "rooftop",
+		"preset": "dawn",
+		"outfit": {
+			"tshirts": 0,
+			"pants": 1,
+			"boots": 0
+		},
+		"ui": true,
+		"dpr": 2
+	},
+	{
+		"name": "forest-noon",
+		"place": "forest",
+		"preset": "noon",
+		"outfit": {
+			"tshirts": 0,
+			"pants": 2,
+			"boots": 1
+		},
+		"cam": {
+			"pos": [
+				0.8,
+				0.3,
+				3.0
+			],
+			"look": [
+				0,
+				0.0,
+				0
+			],
+			"fov": 40
+		},
+		"dpr": 2
+	},
+	{
+		"name": "forest-dawn",
+		"place": "forest",
+		"preset": "dawn",
+		"outfit": {
+			"tshirts": 0,
+			"pants": 2,
+			"boots": 1
+		},
+		"cam": {
+			"pos": [
+				0.8,
+				0.3,
+				3.0
+			],
+			"look": [
+				0,
+				0.0,
+				0
+			],
+			"fov": 40
+		},
+		"dpr": 2
+	},
+	{
+		"name": "forest-noon-ui",
+		"place": "forest",
+		"preset": "noon",
+		"outfit": {
+			"tshirts": 0,
+			"pants": 2,
+			"boots": 1
+		},
+		"ui": true,
+		"dpr": 2
+	},
+	{
+		"name": "dunes-dusk",
+		"place": "dunes",
+		"preset": "dusk",
+		"outfit": {
+			"tshirts": 0,
+			"pants": 3,
+			"boots": 1,
+			"bags": 0
+		},
+		"cam": {
+			"pos": [
+				-0.8,
+				0.3,
+				3.0
+			],
+			"look": [
+				0,
+				0.0,
+				0
+			],
+			"fov": 40
+		},
+		"dpr": 2
+	},
+	{
+		"name": "dunes-dawn",
+		"place": "dunes",
+		"preset": "dawn",
+		"outfit": {
+			"tshirts": 0,
+			"pants": 3,
+			"boots": 1,
+			"bags": 0
+		},
+		"cam": {
+			"pos": [
+				-0.8,
+				0.3,
+				3.0
+			],
+			"look": [
+				0,
+				0.0,
+				0
+			],
+			"fov": 40
+		},
+		"dpr": 2
+	},
+	{
+		"name": "dunes-dusk-ui",
+		"place": "dunes",
+		"preset": "dusk",
+		"outfit": {
+			"tshirts": 0,
+			"pants": 3,
+			"boots": 1,
+			"bags": 0
+		},
+		"ui": true,
+		"dpr": 2
+	},
+	{
+		"name": "phone-sheet",
+		"place": "harbor",
+		"preset": "dusk",
+		"outfit": {
+			"tshirts": 0,
+			"pants": 0,
+			"boots": 0,
+			"bags": 0
+		},
+		"ui": true,
+		"sheet": 3,
+		"viewport": "390x844",
+		"dpr": 3
+	}
+]

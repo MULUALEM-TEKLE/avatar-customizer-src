@@ -1,0 +1,864 @@
+{
+	"version": 3,
+	"bpm": 124,
+	"fps": 60,
+	"width": 1920,
+	"height": 1080,
+	"bars": 26,
+	"notes": "v3: title card, then the real loading screen and entrance (a screencast against `pnpm preview`, cut so the reveal lands on bar 4, where the groove starts), then v2 from bar 6 on the same grid, so synth.mjs runs unchanged. Looks may name a preset or an entry in `outfits` (t-shirt looks: the face reads; the arms keep the long-sleeve base and gloves). Letterbox from bar 6 (`letterboxFrom`). Times in bars (1 bar = 4 beats = 1.9355 s at 124 BPM). Hard cuts on the grid. The character's animation is ONE continuous timeline stepped 1/fps per frame across all cuts. The camera is set directly per frame (controls.setExternalCamera(true)): each section or bar lists camera keyframes {at (bar), pos [x,y,z], look [x,y,z], fov} interpolated with smoothstep between keyframes; a new keyframe set at a cut is a hard camera change. World: the figure stands at the origin, soles y = -0.9, head \u2248 0.75; the places are built for the -z half, so cameras stay at z > 0.6 and |x| < 2.4; keep look.y \u2265 0 unless noted so the head keeps air. Letterbox 2.39:1 is added in assembly (16:9 only), not in the frames. UI hidden in every scene frame. Looks: commuter, downpour, offshift, deckhand, basics, layered. Presets: dawn, noon, dusk, night. Places: harbor, rooftop, forest, dunes.",
+	"sections": [
+		{
+			"bars": [
+				0,
+				1
+			],
+			"type": "title",
+			"title": "Character Customizer",
+			"sub": "Dress, pose, light, capture.",
+			"fadeIn": 0.4,
+			"fadeOut": 0.25
+		},
+		{
+			"bars": [
+				1,
+				6
+			],
+			"type": "entrance",
+			"source": "_/launch/v3/entrance-source.mp4",
+			"segments": [
+				[
+					0.45,
+					2.9
+				],
+				[
+					5.083,
+					12.4
+				]
+			],
+			"notes": "Source: node scripts/record-entrance.mjs --mode record --url <pnpm preview> --viewport 1920x1080 --kbps 500. Segment 1 is the pencil and ink pass; segment 2 starts on the finished outline (only the percent counter jumps) and puts the reveal (source 8.45 s) on bar 4."
+		},
+		{
+			"bars": [
+				6,
+				8
+			],
+			"type": "hero",
+			"place": "harbor",
+			"preset": "dusk",
+			"look": "teeA",
+			"clip": "Male_Idle1",
+			"camera": [
+				{
+					"at": 6,
+					"pos": [
+						0.9,
+						-0.55,
+						3.4
+					],
+					"look": [
+						0,
+						0.05,
+						0
+					],
+					"fov": 42
+				},
+				{
+					"at": 8,
+					"pos": [
+						0.25,
+						0.25,
+						2.15
+					],
+					"look": [
+						0,
+						0.35,
+						0
+					],
+					"fov": 46
+				}
+			],
+			"caption": {
+				"text": "Four places. Four hours of light.",
+				"at": 6.25,
+				"for": 1.6
+			}
+		},
+		{
+			"bars": [
+				8,
+				16
+			],
+			"type": "cycle",
+			"clip": "Male_Idle1",
+			"cutEvery": 1,
+			"cutUnit": "beat",
+			"notes": "32 cuts, one per beat; each bar is one place with its own camera move; each beat changes light and look. Animation continues across cuts.",
+			"bars_plan": [
+				{
+					"bar": 8,
+					"place": "harbor",
+					"camera": [
+						{
+							"at": 8,
+							"pos": [
+								1.7,
+								0.1,
+								1.9
+							],
+							"look": [
+								0,
+								0.3,
+								0
+							],
+							"fov": 44
+						},
+						{
+							"at": 9,
+							"pos": [
+								1.3,
+								0.15,
+								2.1
+							],
+							"look": [
+								0,
+								0.3,
+								0
+							],
+							"fov": 44
+						}
+					],
+					"beats": [
+						[
+							"dusk",
+							"teeA"
+						],
+						[
+							"night",
+							"teeD"
+						],
+						[
+							"dawn",
+							"offshift"
+						],
+						[
+							"noon",
+							"deckhand"
+						]
+					]
+				},
+				{
+					"bar": 9,
+					"place": "rooftop",
+					"camera": [
+						{
+							"at": 9,
+							"pos": [
+								-1.3,
+								-0.45,
+								2.3
+							],
+							"look": [
+								0,
+								0.2,
+								0
+							],
+							"fov": 46
+						},
+						{
+							"at": 10,
+							"pos": [
+								-1.0,
+								-0.2,
+								2.2
+							],
+							"look": [
+								0,
+								0.25,
+								0
+							],
+							"fov": 46
+						}
+					],
+					"beats": [
+						[
+							"night",
+							"teeA"
+						],
+						[
+							"dusk",
+							"commuter"
+						],
+						[
+							"dawn",
+							"teeB"
+						],
+						[
+							"noon",
+							"teeD"
+						]
+					]
+				},
+				{
+					"bar": 10,
+					"place": "forest",
+					"camera": [
+						{
+							"at": 10,
+							"pos": [
+								0.25,
+								0.35,
+								1.55
+							],
+							"look": [
+								0,
+								0.4,
+								0
+							],
+							"fov": 40
+						},
+						{
+							"at": 11,
+							"pos": [
+								0.1,
+								0.4,
+								1.4
+							],
+							"look": [
+								0,
+								0.45,
+								0
+							],
+							"fov": 40
+						}
+					],
+					"beats": [
+						[
+							"noon",
+							"offshift"
+						],
+						[
+							"dawn",
+							"deckhand"
+						],
+						[
+							"dusk",
+							"teeD"
+						],
+						[
+							"night",
+							"teeA"
+						]
+					]
+				},
+				{
+					"bar": 11,
+					"place": "dunes",
+					"camera": [
+						{
+							"at": 11,
+							"pos": [
+								0.4,
+								0.5,
+								4.1
+							],
+							"look": [
+								0,
+								0.1,
+								0
+							],
+							"fov": 36
+						},
+						{
+							"at": 12,
+							"pos": [
+								0.2,
+								0.35,
+								3.7
+							],
+							"look": [
+								0,
+								0.15,
+								0
+							],
+							"fov": 36
+						}
+					],
+					"beats": [
+						[
+							"dawn",
+							"deckhand"
+						],
+						[
+							"dusk",
+							"teeB"
+						],
+						[
+							"noon",
+							"commuter"
+						],
+						[
+							"night",
+							"offshift"
+						]
+					]
+				},
+				{
+					"bar": 12,
+					"place": "harbor",
+					"camera": [
+						{
+							"at": 12,
+							"pos": [
+								-1.8,
+								0.0,
+								1.6
+							],
+							"look": [
+								0,
+								0.3,
+								0
+							],
+							"fov": 44
+						},
+						{
+							"at": 13,
+							"pos": [
+								-1.4,
+								0.1,
+								1.9
+							],
+							"look": [
+								0,
+								0.3,
+								0
+							],
+							"fov": 44
+						}
+					],
+					"beats": [
+						[
+							"night",
+							"commuter"
+						],
+						[
+							"dawn",
+							"teeD"
+						],
+						[
+							"dusk",
+							"teeB"
+						],
+						[
+							"noon",
+							"teeA"
+						]
+					]
+				},
+				{
+					"bar": 13,
+					"place": "rooftop",
+					"camera": [
+						{
+							"at": 13,
+							"pos": [
+								0.6,
+								0.9,
+								2.3
+							],
+							"look": [
+								0,
+								0.1,
+								0
+							],
+							"fov": 46
+						},
+						{
+							"at": 14,
+							"pos": [
+								0.3,
+								0.7,
+								2.1
+							],
+							"look": [
+								0,
+								0.2,
+								0
+							],
+							"fov": 46
+						}
+					],
+					"beats": [
+						[
+							"dusk",
+							"offshift"
+						],
+						[
+							"night",
+							"deckhand"
+						],
+						[
+							"noon",
+							"teeA"
+						],
+						[
+							"dawn",
+							"commuter"
+						]
+					]
+				},
+				{
+					"bar": 14,
+					"place": "forest",
+					"camera": [
+						{
+							"at": 14,
+							"pos": [
+								-0.5,
+								-0.6,
+								2.0
+							],
+							"look": [
+								0,
+								0.2,
+								0
+							],
+							"fov": 48
+						},
+						{
+							"at": 15,
+							"pos": [
+								-0.2,
+								-0.4,
+								1.8
+							],
+							"look": [
+								0,
+								0.25,
+								0
+							],
+							"fov": 48
+						}
+					],
+					"beats": [
+						[
+							"dusk",
+							"teeB"
+						],
+						[
+							"noon",
+							"teeD"
+						],
+						[
+							"night",
+							"offshift"
+						],
+						[
+							"dawn",
+							"teeA"
+						]
+					]
+				},
+				{
+					"bar": 15,
+					"place": "dunes",
+					"camera": [
+						{
+							"at": 15,
+							"pos": [
+								1.1,
+								0.2,
+								1.5
+							],
+							"look": [
+								0,
+								0.45,
+								0
+							],
+							"fov": 40
+						},
+						{
+							"at": 16,
+							"pos": [
+								0.8,
+								0.3,
+								1.3
+							],
+							"look": [
+								0,
+								0.5,
+								0
+							],
+							"fov": 40
+						}
+					],
+					"beats": [
+						[
+							"noon",
+							"deckhand"
+						],
+						[
+							"night",
+							"teeD"
+						],
+						[
+							"dawn",
+							"commuter"
+						],
+						[
+							"dusk",
+							"offshift"
+						]
+					]
+				}
+			],
+			"caption": {
+				"text": "Every garment. Every place.",
+				"at": 8,
+				"for": 3
+			}
+		},
+		{
+			"bars": [
+				16,
+				20
+			],
+			"type": "cycle",
+			"clip": "MagicSpell",
+			"clipStartsAt": 16,
+			"cutEvery": 2,
+			"cutUnit": "beat",
+			"camera": [
+				{
+					"at": 16,
+					"pos": [
+						0.9,
+						-0.75,
+						2.7
+					],
+					"look": [
+						0,
+						-0.1,
+						0
+					],
+					"fov": 44
+				},
+				{
+					"at": 20,
+					"pos": [
+						0.4,
+						0.95,
+						2.3
+					],
+					"look": [
+						0,
+						0.5,
+						0
+					],
+					"fov": 44
+				}
+			],
+			"notes": "A single crane from the boots to the face across the whole section while the Cast gesture plays once and settles; 8 cuts, one every half bar.",
+			"cuts": [
+				[
+					"harbor",
+					"dusk",
+					"teeD"
+				],
+				[
+					"rooftop",
+					"dusk",
+					"teeD"
+				],
+				[
+					"forest",
+					"dusk",
+					"teeD"
+				],
+				[
+					"dunes",
+					"dusk",
+					"teeD"
+				],
+				[
+					"dunes",
+					"dawn",
+					"teeC"
+				],
+				[
+					"forest",
+					"dawn",
+					"teeC"
+				],
+				[
+					"rooftop",
+					"dawn",
+					"teeC"
+				],
+				[
+					"harbor",
+					"dawn",
+					"teeC"
+				]
+			],
+			"caption": {
+				"text": "Pose it.",
+				"at": 16,
+				"for": 2
+			}
+		},
+		{
+			"bars": [
+				20,
+				22
+			],
+			"type": "cycle",
+			"clip": "Male_Idle2",
+			"cutEvery": 1,
+			"cutUnit": "beat",
+			"camera": [
+				{
+					"at": 20,
+					"pos": [
+						2.2,
+						0.1,
+						0.9
+					],
+					"look": [
+						0,
+						0.3,
+						0
+					],
+					"fov": 44
+				},
+				{
+					"at": 22,
+					"pos": [
+						1.5,
+						0.15,
+						1.9
+					],
+					"look": [
+						0,
+						0.3,
+						0
+					],
+					"fov": 44
+				}
+			],
+			"cuts": [
+				[
+					"harbor",
+					"night",
+					"teeC"
+				],
+				[
+					"rooftop",
+					"night",
+					"teeC"
+				],
+				[
+					"forest",
+					"night",
+					"teeC"
+				],
+				[
+					"dunes",
+					"night",
+					"teeC"
+				],
+				[
+					"dunes",
+					"noon",
+					"teeC"
+				],
+				[
+					"forest",
+					"noon",
+					"teeC"
+				],
+				[
+					"rooftop",
+					"noon",
+					"teeC"
+				],
+				[
+					"harbor",
+					"noon",
+					"teeC"
+				]
+			]
+		},
+		{
+			"bars": [
+				22,
+				24
+			],
+			"type": "cycle",
+			"clip": "Male_Idle2",
+			"cutEvery": 0.5,
+			"cutUnit": "beat",
+			"camera": [
+				{
+					"at": 22,
+					"pos": [
+						0.0,
+						0.2,
+						2.5
+					],
+					"look": [
+						0,
+						0.3,
+						0
+					],
+					"fov": 46
+				},
+				{
+					"at": 24,
+					"pos": [
+						0.0,
+						0.25,
+						2.2
+					],
+					"look": [
+						0,
+						0.35,
+						0
+					],
+					"fov": 46
+				}
+			],
+			"notes": "16 cuts, one every half beat: all 16 place x light combinations, look fixed (commuter); steady front camera with the beat punch; hard stop on bar 24.",
+			"cuts": [
+				[
+					"harbor",
+					"dawn",
+					"teeA"
+				],
+				[
+					"rooftop",
+					"dawn",
+					"teeA"
+				],
+				[
+					"forest",
+					"dawn",
+					"teeA"
+				],
+				[
+					"dunes",
+					"dawn",
+					"teeA"
+				],
+				[
+					"harbor",
+					"noon",
+					"teeA"
+				],
+				[
+					"rooftop",
+					"noon",
+					"teeA"
+				],
+				[
+					"forest",
+					"noon",
+					"teeA"
+				],
+				[
+					"dunes",
+					"noon",
+					"teeA"
+				],
+				[
+					"harbor",
+					"dusk",
+					"teeA"
+				],
+				[
+					"rooftop",
+					"dusk",
+					"teeA"
+				],
+				[
+					"forest",
+					"dusk",
+					"teeA"
+				],
+				[
+					"dunes",
+					"dusk",
+					"teeA"
+				],
+				[
+					"harbor",
+					"night",
+					"teeA"
+				],
+				[
+					"rooftop",
+					"night",
+					"teeA"
+				],
+				[
+					"forest",
+					"night",
+					"teeA"
+				],
+				[
+					"dunes",
+					"night",
+					"teeA"
+				]
+			],
+			"caption": {
+				"text": "Capture it. Share it.",
+				"at": 22,
+				"for": 2
+			}
+		},
+		{
+			"bars": [
+				24,
+				26
+			],
+			"type": "title",
+			"title": "Character Customizer",
+			"sub": "input-character.vercel.app",
+			"fadeIn": 0.3,
+			"fadeOut": 0.75
+		}
+	],
+	"outfits": {
+		"teeA": {
+			"tshirts": 0,
+			"pants": 0,
+			"boots": 0,
+			"bags": 0
+		},
+		"teeB": {
+			"tshirts": 0,
+			"pants": 1,
+			"boots": 0
+		},
+		"teeC": {
+			"tshirts": 0,
+			"pants": 2,
+			"boots": 1
+		},
+		"teeD": {
+			"tshirts": 0,
+			"pants": 3,
+			"boots": 1,
+			"bags": 0
+		}
+	},
+	"punch": [
+		6,
+		24
+	],
+	"flashes": [
+		16,
+		24
+	],
+	"letterboxFrom": 6
+}
