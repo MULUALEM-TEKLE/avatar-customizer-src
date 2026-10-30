@@ -7,7 +7,7 @@
 			content="width=device-width, initial-scale=1, viewport-fit=cover"
 		/>
 
-		<title>Avatar Customizer — Bilal</title>
+		<title>Character Customizer</title>
 		<meta
 			name="description"
 			content="Dress a 3D character from a configurable wardrobe, pose it, and capture the look."
@@ -22,20 +22,16 @@
 		<link rel="preload" as="font" type="font/woff2" href="/fonts/instrument-serif-latin.woff2" crossorigin />
 		<link rel="preload" as="font" type="font/woff2" href="/fonts/material-symbols-subset.woff2" crossorigin />
 
-		<link rel="preload" as="image" href="/loader.webp" />
 		<link rel="preload" as="fetch" href="/models/bilal.glb" crossorigin />
 	</head>
 
 	<body>
-		<h1 class="sr-only">Avatar Customizer</h1>
+		<h1 class="sr-only">Character Customizer</h1>
 
 		<!-- Markup, not JS, so the first paint happens before any script runs. -->
 		<div class="loading" id="loading">
 			<header class="loading__head">
-				<p class="loading__mark">Bilal</p>
-				<p class="loading__strap">
-					Autumn/Winter — a configurable wardrobe.
-				</p>
+				<p class="loading__mark">Character Customizer</p>
 			</header>
 
 			<!-- The figure's silhouette, traced from the model by scripts/trace-outline.mjs
@@ -100,7 +96,7 @@
 				tabindex="0"
 				role="application"
 				aria-roledescription="3D avatar viewport"
-				aria-label="Bilal, 3D preview"
+				aria-label="Character, 3D preview"
 				aria-describedby="viewport-help"
 			></canvas>
 			<p class="plate-caption" id="plate-caption"></p>
@@ -182,7 +178,7 @@
 
 		<aside class="panel collapsed" id="panel" aria-label="Wardrobe" inert>
 			<header class="panel__head">
-				<p class="panel__mark" id="panel-title">Bilal</p>
+				<p class="panel__mark" id="panel-title">Wardrobe</p>
 				<button class="text-button" id="panel-close" type="button">Close</button>
 			</header>
 

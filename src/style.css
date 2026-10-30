@@ -344,17 +344,6 @@ body.is-capturing .toasts {
 		transform var(--d-3) var(--e-inout);
 }
 
-.plate-caption::before {
-	content: "Bilal";
-	display: block;
-	margin-bottom: 6px;
-	font: 400 var(--fs-micro) / 1 var(--f-ui);
-	font-style: normal;
-	letter-spacing: 0.22em;
-	text-transform: uppercase;
-	color: var(--t-2);
-}
-
 .plate-caption--swap {
 	opacity: 0;
 }
@@ -782,54 +771,6 @@ body:not(.panel-open) .panel__tab {
 	pointer-events: none;
 }
 
-/* ----------------------------------------------------------------- looks */
-
-.looks {
-	display: grid;
-	row-gap: 12px;
-}
-
-.looks__list {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-}
-
-/* Declared before the focus rule would lose to it: `:where(...)` contributes no
-   specificity, so that rule is (0,1,0) — exactly the same as `.look`, and later
-   in the file. Without an explicit focus state the Look buttons had no ring. */
-.look:focus-visible {
-	box-shadow: inset 0 0 0 1px var(--line-3), var(--focus-ring);
-}
-
-.look {
-	height: 28px;
-	padding: 0 13px;
-	font: 400 var(--fs-meta) / 1 var(--f-ui);
-	letter-spacing: 0.14em;
-	text-transform: uppercase;
-	color: var(--t-3);
-	box-shadow: inset 0 0 0 1px var(--line-1);
-	transition:
-		color var(--d-1) linear,
-		box-shadow var(--d-1) linear,
-		background-color var(--d-1) linear;
-}
-
-.look:hover {
-	color: var(--t-1);
-	background: var(--s-hover);
-}
-
-.look[aria-pressed="true"] {
-	color: var(--t-1);
-	box-shadow: inset 0 0 0 1px var(--line-3);
-}
-
-.look--shuffle {
-	color: var(--t-2);
-}
-
 /* ------------------------------------------------------- segmented control */
 
 .field {
@@ -898,14 +839,10 @@ body:not(.panel-open) .panel__tab {
 }
 
 /* On wide screens the wrapper dissolves so its two children take their own
-   places in the scroller: looks at the top, light/quality/export at the bottom.
+   place in the scroller: light/quality/export at the bottom.
    On phone it becomes a real box and gets its own tab. */
 .extras {
 	display: contents;
-}
-
-.looks {
-	order: -1;
 }
 
 .panel__footer {
@@ -1285,16 +1222,9 @@ body.is-capturing .console .capture {
 }
 
 .loading__mark {
-	font: 400 var(--fs-display) / 1 var(--f-display);
-	letter-spacing: -0.015em;
-	color: var(--t-1);
-}
-
-.loading__strap {
-	margin-top: 12px;
-	max-width: 34ch;
-	font: 300 var(--fs-lead) / 1.4 var(--f-ui);
-	letter-spacing: 0.02em;
+	font: 400 var(--fs-meta) / 1 var(--f-ui);
+	letter-spacing: 0.22em;
+	text-transform: uppercase;
 	color: var(--t-2);
 }
 
@@ -1672,6 +1602,18 @@ kbd {
 		display: none;
 	}
 
+	/* The handle reads as draggable, so a downward swipe closes the sheet. */
+	.panel__head {
+		touch-action: none;
+	}
+
+	/* The label is 12px tall; the target is 44px. */
+	.panel__head .text-button {
+		min-height: 44px;
+		padding: 0 12px;
+		margin-right: -12px;
+	}
+
 	.panel__head::before {
 		content: "";
 		position: absolute;
@@ -1766,7 +1708,7 @@ kbd {
 		scroll-padding: 6px 20px;
 	}
 
-	/* Looks and the light/quality/export controls get their own tab rather than
+	/* The light/quality/export controls get their own tab rather than
 	   being dropped or stacked under the chip track. */
 	.extras {
 		display: none;
@@ -1875,10 +1817,6 @@ kbd {
 		padding: 24px;
 	}
 
-	.loading__mark {
-		font-size: 2rem;
-	}
-
 	.loading__plate {
 		width: 280px;
 	}
@@ -1945,8 +1883,7 @@ kbd {
 
 @media (forced-colors: active) {
 	.chip,
-	.seg__item,
-	.look {
+	.seg__item {
 		forced-color-adjust: none;
 		border: 1px solid ButtonBorder;
 		background: ButtonFace;
@@ -1954,8 +1891,7 @@ kbd {
 	}
 
 	.option__input:checked + .chip,
-	.option__input:checked + .seg__item,
-	.look[aria-pressed="true"] {
+	.option__input:checked + .seg__item {
 		border: 2px solid Highlight;
 	}
 

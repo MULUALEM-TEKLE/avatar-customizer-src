@@ -82,14 +82,8 @@ function compose(source, caption) {
 	ctx.shadowBlur = 18 * scale
 	ctx.shadowOffsetY = 2 * scale
 
-	ctx.font = `400 ${Math.round(15 * scale)}px "Raleway", sans-serif`
-	ctx.fillStyle = "rgba(244,241,235,0.86)"
-	ctx.letterSpacing = `${(3.3 * scale).toFixed(2)}px`
-	ctx.fillText("BILAL", out.width / 2, baseline - 38 * scale)
-
 	ctx.font = `italic 400 ${Math.round(34 * scale)}px "Instrument Serif", serif`
 	ctx.fillStyle = "#F4F1EB"
-	ctx.letterSpacing = "0px"
 	ctx.fillText(caption, out.width / 2, baseline)
 
 	return out

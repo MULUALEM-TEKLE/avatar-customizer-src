@@ -118,7 +118,8 @@ export const PRESETS = {
 		rimIntensity: 2.6,
 		frontColor: "#ffe4cc",
 		frontIntensity: 1.2,
-		envIntensity: 1.15,
+		// The bright day sky read as a wet sheen on the dark glossy garments.
+		envIntensity: 0.85,
 		envRotY: 0.3,
 		exposure: 1,
 		oceanDepth: "#33566b",
@@ -157,7 +158,8 @@ export const PRESETS = {
 		rimIntensity: 1.6,
 		frontColor: "#fff3e6",
 		frontIntensity: 0.8,
-		envIntensity: 1.4,
+		// See dawn: 1.4 put a blue sky sheen on the jacket.
+		envIntensity: 0.9,
 		envRotY: 0,
 		exposure: 0.85,
 		oceanDepth: "#0f4f7a",

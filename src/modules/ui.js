@@ -3,7 +3,6 @@ import {
 	ANIMATIONS,
 	CATEGORIES,
 	CONFLICTS,
-	PRESETS as OUTFIT_PRESETS,
 } from "./config.js"
 import * as state from "./state.js"
 import * as audio from "./audio.js"
@@ -38,10 +37,9 @@ const tabsByCategory = new Map()
 let hooks = { onOutfitChange: () => {}, onSceneChange: () => {}, onTierChange: () => {} }
 let previousSnapshot = null
 let activeCategory = CATEGORIES[0].key
-let activeLook = null
 /**
  * Only a direct pick of one garment can produce a "removed because it clips"
- * message. A Look or a Shuffle replaces the whole outfit, and a replacement that
+ * message. A Shuffle replaces the whole outfit, and a replacement that
  * happens to differ in exactly one worn slot would otherwise be reported as a
  * conflict the user never caused.
  */
@@ -95,7 +93,6 @@ function buildChip(category, item, index) {
 	image.alt = ""
 	image.width = 276
 	image.height = 320
-	image.loading = "lazy"
 	image.decoding = "async"
 
 	const number = document.createElement("span")
@@ -216,7 +213,7 @@ function buildArrow(direction, category) {
 }
 
 /**
- * On phone the sheet shows one category at a time, so the looks row and the
+ * On phone the sheet shows one category at a time, so the
  * light/quality/export controls need a home of their own rather than being
  * dropped — hence a ninth tab. On wider screens they simply sit in the scroller.
  */
@@ -248,45 +245,6 @@ function buildTabs() {
 		els.tabs.appendChild(wrap)
 		tabsByCategory.set(category.key, { input, badge })
 	}
-}
-
-function buildLooks() {
-	const row = document.createElement("div")
-	row.className = "looks"
-
-	const label = document.createElement("h2")
-	label.className = "section__label"
-	label.textContent = "Looks"
-
-	const list = document.createElement("div")
-	list.className = "looks__list"
-
-	for (const preset of OUTFIT_PRESETS) {
-		const button = document.createElement("button")
-		button.type = "button"
-		button.className = "look"
-		button.dataset.look = preset.id
-		button.textContent = preset.label
-		button.addEventListener("click", () => {
-			state.applyPreset(preset.id)
-			activeLook = preset.id
-			paintLooks()
-			audio.playClick()
-			announce(`${preset.label} look applied.`)
-		})
-		list.appendChild(button)
-	}
-
-	const shuffle = document.createElement("button")
-	shuffle.type = "button"
-	shuffle.className = "look look--shuffle"
-	shuffle.textContent = "Shuffle"
-	shuffle.addEventListener("click", () => shuffleOutfit())
-	list.appendChild(shuffle)
-
-	row.append(label, list)
-	els.looks = row
-	return row
 }
 
 function buildSegment({ name, label, options, value, onSelect }) {
@@ -416,12 +374,6 @@ function paint(snapshot) {
 	if (expectDirectSelection) reportRemovals(snapshot)
 	expectDirectSelection = false
 	previousSnapshot = snapshot
-
-	// Any change clears the "wearing a named look" badge. The preset handlers
-	// re-set it after `applyPreset` has already run its subscribers, so the
-	// ordering resolves without a flag.
-	activeLook = null
-	paintLooks()
 }
 
 /**
@@ -477,13 +429,6 @@ function reportRemovals(snapshot) {
 			: `${removed.slice(0, -1).join(", ")} and ${removed.at(-1)}`
 	const message = `${list} removed — not worn with ${cause.label.toLowerCase()}.`
 	toast(`CONFLICT · ${message}`, { icon: "layers_clear" })
-}
-
-function paintLooks() {
-	if (!els.looks) return
-	for (const button of els.looks.querySelectorAll(".look[data-look]")) {
-		button.setAttribute("aria-pressed", String(button.dataset.look === activeLook))
-	}
 }
 
 function paintAudio(status) {
@@ -590,9 +535,9 @@ function showCategory(key) {
 	activeCategory = key
 	const category = categoryOf(key)
 	// On wider screens every category is on screen at once, so the masthead
-	// stays the subject's name — a lookbook is named for who is in it.
+	// names the whole panel.
 	els.panelTitle.textContent = !isPhone()
-		? "Bilal"
+		? "Wardrobe"
 		: category
 			? category.label
 			: "Scene"
@@ -640,8 +585,6 @@ export function nudgeVolume(delta) {
 
 export function shuffleOutfit() {
 	state.randomize()
-	activeLook = null
-	paintLooks()
 	audio.playClick()
 	announce("Outfit shuffled.")
 }
@@ -772,7 +715,7 @@ export function mountUI(options = {}) {
 
 	els.extras = document.createElement("div")
 	els.extras.className = "extras"
-	els.extras.append(buildLooks(), buildFooter())
+	els.extras.append(buildFooter())
 	els.sections.appendChild(els.extras)
 
 	// One delegated listener for every garment in every row. Arrow keys inside a
@@ -794,6 +737,17 @@ export function mountUI(options = {}) {
 		recallControl().focus()
 	})
 	els.recall.addEventListener("click", () => setPanel(true))
+
+	// Phone: the sheet's grab handle closes it on a downward swipe.
+	const head = els.panel.querySelector(".panel__head")
+	let swipeFrom = null
+	head.addEventListener("pointerdown", (event) => {
+		swipeFrom = isPhone() ? event.clientY : null
+	})
+	head.addEventListener("pointerup", (event) => {
+		if (swipeFrom !== null && event.clientY - swipeFrom > 32) setPanel(false)
+		swipeFrom = null
+	})
 
 	els.play.addEventListener("click", () => audio.toggle())
 	els.mute.addEventListener("click", () => toggleMute())
