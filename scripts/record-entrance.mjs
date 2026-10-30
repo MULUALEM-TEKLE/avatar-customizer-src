@@ -186,10 +186,11 @@ async function main() {
 	if (MODE === "match") {
 		let hash = ""
 		if (LOOK) {
-			await send("Page.navigate", { url: `${BASE}/?${QUERY}&q=medium` })
+			// The Looks row is gone from the UI; the outfit presets remain in state (?stats exposes it).
+			await send("Page.navigate", { url: `${BASE}/?${QUERY}&q=medium&stats` })
 			await gone()
 			await sleep(600)
-			const clicked = await evaluate(`(() => { const b = [...document.querySelectorAll("button.look")].find((b) => b.textContent.trim().toLowerCase() === ${JSON.stringify(LOOK.toLowerCase())}); if (!b) return false; b.click(); return true })()`)
+			const clicked = await evaluate(`window.__avatar.state.applyPreset(${JSON.stringify(LOOK.toLowerCase())})`)
 			if (!clicked) throw new Error(`no look named ${LOOK}`)
 			await sleep(2500) // trace debounce + storage write
 			// The app mirrors the session into the hash; a reload carries it.
