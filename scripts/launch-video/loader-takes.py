@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Social cut: four loader takes, each outfit draws its own outline, each reveal on a downbeat.
 
-  python3 scripts/launch-video/loader-takes.py <raw dir> <16x9|9x16> <out.mp4>
+  python3 scripts/launch-video/loader-takes.py <raw dir> <16x9|9x16|4x5> <out.mp4>
 
 Takes come from `sh _/social/2026-10-31-loader-reveal/takes.sh <WxH>` (record-entrance.mjs --look).
 Music is the film v3 track (_/launch/v3/track.wav), its groove starting on reveal 1.
@@ -10,7 +10,9 @@ Text cards are rendered by headless Chrome with the app's own fonts. Needs ffmpe
 import base64, json, os, re, subprocess, sys, tempfile
 
 RAW, SHAPE, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
-W, H = (1920, 1080) if SHAPE == "16x9" else (1080, 1920)
+W, H = {"16x9": (1920, 1080), "9x16": (1080, 1920), "4x5": (1080, 1350)}[SHAPE]
+SRC = "1080x1920" if SHAPE == "9x16" else "1920x1080"  # 4x5: the 16:9 takes, centre crop
+FIT = "crop=864:1080:528:0," if SHAPE == "4x5" else ""
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 TRACK = os.path.join(ROOT, "_/launch/v3/track.wav")
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
@@ -31,7 +33,7 @@ def reveal(src):
 # (source, start, end, speed) segments; reveal k lands on output bar 3 + 2k (bars counted from 0).
 segs = []
 for k, look in enumerate(TAKES):
-	src = os.path.join(RAW, f"record-{W}x{H}-{look}-entrance.mp4")
+	src = os.path.join(RAW, f"record-{SRC}-{look}-entrance.mp4")
 	r = reveal(src)
 	if k == 0:  # full drawing at speed, a held outline under the hook, the reveal on bar 3
 		segs += [(src, *DRAW, 1), (src, r - (3 * BAR - (DRAW[1] - DRAW[0])), r + BAR, 1)]
@@ -43,8 +45,8 @@ total = sum((b - a) / s for _, a, b, s in segs)
 # Text cards, transparent PNGs at the output size.
 tmp = tempfile.mkdtemp()
 font = lambda n: "data:font/woff2;base64," + base64.b64encode(open(os.path.join(ROOT, "static/fonts", n + ".woff2"), "rb").read()).decode()  # file:// fonts do not load in headless
-top = 0.07 if SHAPE == "16x9" else 0.11  # 16:9: one line, clear of the head
-big = 76 if SHAPE == "16x9" else 80
+top = {"16x9": 0.07, "9x16": 0.11, "4x5": 0.05}[SHAPE]  # clear of the head (16:9: one line)
+big = {"16x9": 76, "9x16": 80, "4x5": 70}[SHAPE]
 CARDS = {
 	"hook": f'<div class="t" style="top:{top * 100}%"><h1>A loading screen that{" " if SHAPE == "16x9" else "<br>"}draws the character</h1></div>',
 	"take": f'<div class="t" style="top:{top * 100}%"><h1>New outfit. New outline.</h1></div>',
@@ -69,7 +71,7 @@ end0 = total
 inputs, f = [], []
 for i, (src, a, b, s) in enumerate(segs):
 	inputs += ["-i", src]
-	f.append(f"[{i}:v]trim={a:.4f}:{b:.4f},setpts=(PTS-STARTPTS)/{s},fps=60,scale={W}:{H},setsar=1[s{i}]")
+	f.append(f"[{i}:v]trim={a:.4f}:{b:.4f},setpts=(PTS-STARTPTS)/{s},fps=60,{FIT}scale={W}:{H}:flags=lanczos,setsar=1[s{i}]")
 n = len(segs)
 f.append("".join(f"[s{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=0,tpad=stop_mode=clone:stop_duration={END:.4f}[cat]")
 # The end card: the last frame dims to 20 %, the card fades in.

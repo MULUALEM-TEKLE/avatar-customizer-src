@@ -8,7 +8,7 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## In flight
 
-- avatar-customizer-src-a8: social post of the loader takes (`_/social/2026-10-31-loader-reveal/`, `scripts/launch-video/loader-takes.py`); drafts shown, waiting for "go" to fill X + YouTube tabs.
+- avatar-customizer-src-a8: loader takes post filled on 8 platforms (`_/social/2026-10-31-loader-reveal/`); X and TikTok posted by the user, the other 6 tabs wait for the user's press; LinkedIn link comment after "posted".
 - avatar-customizer-src-a7: portfolio media v3 done (`_/social/2026-10-30-portfolio/`, film `scripts/launch-video/storyboard-v3.json`); sent to session `xar-project-highlights-7d`, waiting for its commit.
 
 ## Blocked / waiting
