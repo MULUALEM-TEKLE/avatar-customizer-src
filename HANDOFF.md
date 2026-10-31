@@ -1,6 +1,6 @@
 # Handoff
 
-Updated: 2026-10-30 23:00, partner feedback + Vercel move, session: avatar-customizer-src-a7
+Updated: 2026-10-31 13:10, loader social post, session: avatar-customizer-src-a8
 
 ## Goal
 
@@ -8,6 +8,7 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## In flight
 
+- avatar-customizer-src-a8: social post of the loader takes (`_/social/2026-10-31-loader-reveal/`, `scripts/launch-video/loader-takes.py`); drafts shown, waiting for "go" to fill X + YouTube tabs.
 - avatar-customizer-src-a7: portfolio media v3 done (`_/social/2026-10-30-portfolio/`, film `scripts/launch-video/storyboard-v3.json`); sent to session `xar-project-highlights-7d`, waiting for its commit.
 
 ## Blocked / waiting
@@ -16,6 +17,7 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## Decisions (last 2 weeks)
 
+- 2026-10-31: `record-entrance.mjs --mode record --look <preset>` records a take with that outfit's saved outline (cache off, so the load stays slow). The layered and offshift presets show a GAP logo on the hoodie: keep them out of public media. Headless Chrome screencasts at CSS px, so `--dpr` does not raise the recording size; record 1080x1920 at DPR 1 for 9:16.
 - 2026-10-30 (partner feedback): no Looks row (outfit presets stay in `state.applyPreset`; `record-entrance.mjs --look` uses them via `?stats`); no character name anywhere in the UI or exports, the loader shows only "Character Customizer" top left; thumbnails load eagerly (lazy images in the horizontal rows never loaded until scrolled); phone sheet Close is 44 px and a swipe down on the handle closes it; the phone tab strip overrides `.seg` fit-content (it was 974 px wide and stopped at T-Shirts); dawn/noon `envIntensity` 0.85/0.9 (the day sky put a wet sheen on the dark garments). Vercel compresses the GLB itself and drops Content-Length, so the loader bar uses `EXPECTED_BYTES` there. The old `input.character` repo no longer deploys to input-character.vercel.app; the portfolio's cattyum-online entry linked there.
 
 - 2026-10-28 (loader): the loading screen is the model's own outline. `scripts/trace-outline.mjs` bakes the default look into `src/index.html` (view-plane units ×1000, from `?entrance=hold` on the dev server); `loadingScreen.track()` places it from the camera's projection matrix every frame, so it lands on the figure at any viewport (screen check: ≤1 CSS px median at DPR 1-3). The app saves each session's own silhouette with the outfit (`saveOutline` in script.js: traced on the first frame of the pose from the entrance camera) and an inline script in index.html applies it before first paint; the hash the app writes (`#o=`) counts as the same session, a shared link with another outfit or `?p=` is traced live at 98 %. Entrance: figure revealed dead centre with the wardrobe closed; pose frozen on frame 0, camera pulled back 8 % (`controls.beginEntrance`); the drawing (pencil pass, ink led by a pen tip, no fill) must finish before the reveal; then the dark lifts (1.0 s) and exposure 0.08 → 1 (2.0 s) with the line on the still figure, the line flares to the accent and is gone by 1.7 s, only then the dolly home and the breath; `openWardrobe()` slides the panel in 0.5 s after the overlay is removed. WebP turntable and `render-loader.mjs` removed; canvas focus ring transparent (shortcuts listen on the window). Evidence: `scripts/record-entrance.mjs --mode match|record` (match = overlay + flat-mask screen distance, `--look` for a saved look; record against `pnpm preview`, the dev server reports bytes in one jump).

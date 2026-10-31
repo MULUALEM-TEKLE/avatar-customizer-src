@@ -10,6 +10,7 @@
  *                  the overlay is the outline the app saved for the next visit.
  *   --mode record  throttles the network so the load takes a few seconds and
  *                  screencasts from first paint to four seconds after the reveal.
+ *                  With --look the take loads that look (and its saved outline).
  *
  *   node scripts/record-entrance.mjs --mode match|record [--url http://localhost:5173]
  *        [--viewport 1440x900] [--dpr 1] [--kbps 500] [--out _/shots/<folder>/raw] [--query "e=harbor&t=dusk"]
@@ -33,7 +34,7 @@ const QUERY = arg("--query", "e=harbor&t=dusk")
 const LOOK = arg("--look", "") // match mode: apply this look first, so the next load uses the saved outline
 const CHROME = process.env.CHROME || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 const PORT = 9800 + Math.floor(Math.random() * 300)
-const tag = `${MODE}-${W}x${H}`
+const tag = `${MODE}-${W}x${H}${LOOK ? "-" + LOOK : ""}`
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 fs.mkdirSync(OUT, { recursive: true })
@@ -183,19 +184,19 @@ async function main() {
 	await send("Emulation.setDeviceMetricsOverride", { width: W, height: H, deviceScaleFactor: DPR, mobile: W < 800 })
 	const gone = () => evaluate(`new Promise((r) => { const poll = () => (!document.getElementById("loading")) ? r() : setTimeout(poll, 100); poll() })`)
 
+	let hash = ""
+	if (LOOK) {
+		// The Looks row is gone from the UI; the outfit presets remain in state (?stats exposes it).
+		await send("Page.navigate", { url: `${BASE}/?${QUERY}&q=medium&stats` })
+		await gone()
+		await sleep(600)
+		const clicked = await evaluate(`window.__avatar.state.applyPreset(${JSON.stringify(LOOK.toLowerCase())})`)
+		if (!clicked) throw new Error(`no look named ${LOOK}`)
+		await sleep(2500) // trace debounce + storage write
+		// The app mirrors the session into the hash; a reload carries it.
+		hash = await evaluate("location.hash")
+	}
 	if (MODE === "match") {
-		let hash = ""
-		if (LOOK) {
-			// The Looks row is gone from the UI; the outfit presets remain in state (?stats exposes it).
-			await send("Page.navigate", { url: `${BASE}/?${QUERY}&q=medium&stats` })
-			await gone()
-			await sleep(600)
-			const clicked = await evaluate(`window.__avatar.state.applyPreset(${JSON.stringify(LOOK.toLowerCase())})`)
-			if (!clicked) throw new Error(`no look named ${LOOK}`)
-			await sleep(2500) // trace debounce + storage write
-			// The app mirrors the session into the hash; a reload carries it.
-			hash = await evaluate("location.hash")
-		}
 		await send("Page.navigate", { url: `${BASE}/?${QUERY}&q=medium&entrance=hold${hash}` })
 		await gone()
 		await sleep(800)
@@ -215,9 +216,10 @@ async function main() {
 		console.log(JSON.stringify({ ...result, screenPx: screen, files: [plain, over, overOnMask, mask], errors }, null, 1))
 	} else {
 		await send("Network.enable")
+		await send("Network.setCacheDisabled", { cacheDisabled: true }) // a --look pre-load must not shorten the take
 		await send("Network.emulateNetworkConditions", { offline: false, latency: 40, downloadThroughput: KBPS * 1024, uploadThroughput: 256 * 1024 })
 		await send("Page.startScreencast", { format: "jpeg", quality: 88, maxWidth: W * DPR, maxHeight: H * DPR, everyNthFrame: 1 })
-		await send("Page.navigate", { url: `${BASE}/?${QUERY}` })
+		await send("Page.navigate", { url: `${BASE}/?${QUERY}${hash}` })
 		const t0 = Date.now()
 		await sleep(1200)
 		await shot("loading-early")
