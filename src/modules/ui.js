@@ -344,6 +344,29 @@ function buildFooter() {
 
 /* -------------------------------------------------------------- painting */
 
+// Selected index each row last scrolled to. The arrows, the keys and presets
+// change the selection without touching the row, so a pick past the third tile
+// stayed off-screen and the visible previews never changed (partner, 2026-11-03).
+const revealed = new Map()
+
+function revealChip(key, { instant = false } = {}) {
+	const parts = chipsByCategory.get(key)
+	const selected = state.getIndex(key)
+	const option = parts?.inputs.find((i) => Number(i.dataset.index) === selected)?.closest(".option")
+	const track = parts?.track
+	if (!option || !track.clientWidth) return // hidden row: retried when it is shown
+	revealed.set(key, selected)
+	const r = track.getBoundingClientRect()
+	const o = option.getBoundingClientRect()
+	if (o.left >= r.left && o.right <= r.right) return
+	const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+	track.scrollBy({ left: o.left + o.width / 2 - (r.left + r.width / 2), behavior: instant || reduced ? "instant" : "smooth" })
+}
+
+function revealAll() {
+	for (const key of chipsByCategory.keys()) if (revealed.get(key) !== state.getIndex(key)) revealChip(key, { instant: true })
+}
+
 function paint(snapshot) {
 	for (const category of CATEGORIES) {
 		const parts = chipsByCategory.get(category.key)
@@ -355,6 +378,7 @@ function paint(snapshot) {
 		for (const input of parts.inputs) {
 			input.checked = Number(input.dataset.index) === selected
 		}
+		if (revealed.get(category.key) !== selected) revealChip(category.key, { instant: !revealed.has(category.key) })
 
 		const shown = selected === -1 ? "—" : String(selected + 1).padStart(2, "0")
 		parts.count.textContent = `${shown} / ${String(total).padStart(2, "0")}`
@@ -474,6 +498,7 @@ function setPanel(open, { silent = false, quiet = silent } = {}) {
 
 	if (open) {
 		els.panel.inert = false
+		revealAll()
 		if (!staggered) {
 			els.sections.classList.add("sections--stagger")
 			staggered = true
@@ -549,6 +574,7 @@ function showCategory(key) {
 		section.classList.toggle("section--active", otherKey === key)
 	}
 	els.extras.classList.toggle("extras--active", key === EXTRAS_KEY)
+	revealAll()
 	// The sheet's height follows its content on phones.
 	if (els.panel) updateFraming({ animate: false })
 }

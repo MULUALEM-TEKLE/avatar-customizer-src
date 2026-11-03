@@ -1,6 +1,6 @@
 # Handoff
 
-Updated: 2026-10-31 13:10, loader social post, session: avatar-customizer-src-a8
+Updated: 2026-11-03, wardrobe rows follow the selection, session: avatar-customizer-src-a8
 
 ## Goal
 
@@ -8,7 +8,6 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## In flight
 
-- avatar-customizer-src-a8: loader takes post filled on 8 platforms (`_/social/2026-10-31-loader-reveal/`); X and TikTok posted by the user, the other 6 tabs wait for the user's press; LinkedIn link comment after "posted".
 - avatar-customizer-src-a7: portfolio media v3 done (`_/social/2026-10-30-portfolio/`, film `scripts/launch-video/storyboard-v3.json`); sent to session `xar-project-highlights-7d`, waiting for its commit.
 
 ## Blocked / waiting
@@ -17,6 +16,7 @@ Dress a rigged 3D character from a wardrobe, pose it, light it, capture the resu
 
 ## Decisions (last 2 weeks)
 
+- 2026-11-03 (partner): a wardrobe row scrolls to the selected tile when the selection changes (arrows, keys, presets, shared links), on panel open and on a phone tab switch (`revealChip` in ui.js). Before, a pick past the third tile stayed off-screen, so the previews never changed.
 - 2026-10-31: `record-entrance.mjs --mode record --look <preset>` records a take with that outfit's saved outline (cache off, so the load stays slow). The layered and offshift presets show a GAP logo on the hoodie: keep them out of public media. Headless Chrome screencasts at CSS px, so `--dpr` does not raise the recording size; record 1080x1920 at DPR 1 for 9:16.
 - 2026-10-30 (partner feedback): no Looks row (outfit presets stay in `state.applyPreset`; `record-entrance.mjs --look` uses them via `?stats`); no character name anywhere in the UI or exports, the loader shows only "Character Customizer" top left; thumbnails load eagerly (lazy images in the horizontal rows never loaded until scrolled); phone sheet Close is 44 px and a swipe down on the handle closes it; the phone tab strip overrides `.seg` fit-content (it was 974 px wide and stopped at T-Shirts); dawn/noon `envIntensity` 0.85/0.9 (the day sky put a wet sheen on the dark garments). Vercel compresses the GLB itself and drops Content-Length, so the loader bar uses `EXPECTED_BYTES` there. The old `input.character` repo no longer deploys to input-character.vercel.app; the portfolio's cattyum-online entry linked there.
 
